@@ -140,6 +140,14 @@ impl Drop for NativeProgressBarElementState {
                 native_controls::remove_native_view_from_parent(indicator);
                 native_controls::release_native_progress_indicator(indicator);
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                let indicator = self.indicator_ptr as native_controls::id;
+                native_controls::stop_native_progress_animation(indicator);
+                native_controls::remove_native_view_from_parent(indicator);
+                native_controls::release_native_progress_indicator(indicator);
+            }
         }
     }
 }
@@ -350,6 +358,141 @@ impl Element for NativeProgressBar {
                                 indicator,
                                 bounds,
                                 native_view as cocoa::base::id,
+                                window.scale_factor(),
+                            );
+                            if animate {
+                                native_controls::start_native_progress_animation(indicator);
+                            }
+                            indicator as *mut c_void
+                        };
+
+                        NativeProgressBarElementState {
+                            indicator_ptr,
+                            current_value: if indeterminate { None } else { Some(value) },
+                            current_min: min,
+                            current_max: max,
+                            current_style: progress_style,
+                            current_indeterminate: indeterminate,
+                            current_displayed_when_stopped: displayed_when_stopped,
+                            animating: animate,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let progress_style = self.progress_style;
+            let displayed_when_stopped = self.displayed_when_stopped;
+            let (min, max) = normalize_range(self.min, self.max);
+            let indeterminate =
+                self.value.is_none() || matches!(progress_style, NativeProgressStyle::Spinner);
+            let value = self
+                .value
+                .map(|v| clamp_to_range(v, min, max))
+                .unwrap_or(min);
+
+            window.with_optional_element_state::<NativeProgressBarElementState, _>(
+                id,
+                |prev_state, window| {
+                    let animate = should_animate(progress_style, indeterminate);
+
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            let indicator = state.indicator_ptr as native_controls::id;
+                            native_controls::set_native_view_frame(
+                                indicator,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+
+                            if state.current_style != progress_style {
+                                native_controls::set_native_progress_style(
+                                    indicator,
+                                    progress_style.to_ns_style(),
+                                );
+                                state.current_style = progress_style;
+                            }
+
+                            if state.current_min != min || state.current_max != max {
+                                native_controls::set_native_progress_min_max(indicator, min, max);
+                                state.current_min = min;
+                                state.current_max = max;
+                            }
+
+                            if state.current_displayed_when_stopped != displayed_when_stopped {
+                                native_controls::set_native_progress_displayed_when_stopped(
+                                    indicator,
+                                    displayed_when_stopped,
+                                );
+                                state.current_displayed_when_stopped = displayed_when_stopped;
+                            }
+
+                            if state.current_indeterminate != indeterminate {
+                                native_controls::set_native_progress_indeterminate(
+                                    indicator,
+                                    indeterminate,
+                                );
+                                state.current_indeterminate = indeterminate;
+                            }
+
+                            let next_value = if indeterminate { None } else { Some(value) };
+                            if state.current_value != next_value {
+                                if let Some(v) = next_value {
+                                    native_controls::set_native_progress_value(indicator, v);
+                                }
+                                state.current_value = next_value;
+                            }
+
+                            if animate && !state.animating {
+                                native_controls::start_native_progress_animation(indicator);
+                                state.animating = true;
+                            } else if !animate && state.animating {
+                                native_controls::stop_native_progress_animation(indicator);
+                                state.animating = false;
+                            }
+                        }
+
+                        state
+                    } else {
+                        let indicator_ptr = unsafe {
+                            let indicator = native_controls::create_native_progress_indicator();
+                            native_controls::set_native_progress_style(
+                                indicator,
+                                progress_style.to_ns_style(),
+                            );
+                            native_controls::set_native_progress_min_max(indicator, min, max);
+                            native_controls::set_native_progress_displayed_when_stopped(
+                                indicator,
+                                displayed_when_stopped,
+                            );
+                            native_controls::set_native_progress_indeterminate(
+                                indicator,
+                                indeterminate,
+                            );
+                            if !indeterminate {
+                                native_controls::set_native_progress_value(indicator, value);
+                            }
+                            native_controls::attach_native_view_to_parent(
+                                indicator,
+                                native_view as native_controls::id,
+                            );
+                            native_controls::set_native_view_frame(
+                                indicator,
+                                bounds,
+                                native_view as native_controls::id,
                                 window.scale_factor(),
                             );
                             if animate {

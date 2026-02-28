@@ -99,6 +99,14 @@ impl Drop for NativeTrackingViewState {
                     self.view_ptr as cocoa::base::id,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                // release_native_tracking_view handles cleanup internally
+                native_controls::release_native_tracking_view(
+                    self.view_ptr as native_controls::id,
+                );
+            }
         }
     }
 }
@@ -351,6 +359,57 @@ impl Element for NativeTrackingView {
                             NativeTrackingViewState {
                                 view_ptr: view as *mut c_void,
                                 target_ptr,
+                                attached: true,
+                            }
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            window.with_optional_element_state::<NativeTrackingViewState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut element_state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                element_state.view_ptr as native_controls::id,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+                        }
+
+                        element_state
+                    } else {
+                        unsafe {
+                            let view = native_controls::create_native_tracking_view();
+
+                            native_controls::attach_native_view_to_parent(
+                                view,
+                                native_view as native_controls::id,
+                            );
+                            native_controls::set_native_view_frame(
+                                view,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+
+                            NativeTrackingViewState {
+                                view_ptr: view as *mut c_void,
+                                target_ptr: std::ptr::null_mut(),
                                 attached: true,
                             }
                         }

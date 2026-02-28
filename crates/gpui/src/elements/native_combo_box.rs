@@ -140,6 +140,16 @@ impl Drop for NativeComboBoxElementState {
                     native_controls::release_native_combo_box,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.combo_box_ptr,
+                    self.delegate_ptr,
+                    native_controls::release_native_combo_box_delegate,
+                    native_controls::release_native_combo_box,
+                );
+            }
         }
     }
 }
@@ -380,6 +390,198 @@ impl Element for NativeComboBox {
                 },
             );
         }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let on_change = self.on_change.take();
+            let on_select = self.on_select.take();
+            let items = self.items.clone();
+            let selected_index = clamp_selected_index(self.selected_index, items.len());
+            let text = self.text.clone();
+            let editable = self.editable;
+            let completes = self.completes;
+            let disabled = self.disabled;
+
+            let next_frame_callbacks = window.next_frame_callbacks.clone();
+            let invalidator = window.invalidator.clone();
+
+            window.with_optional_element_state::<NativeComboBoxElementState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.combo_box_ptr as native_controls::id,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+
+                            if state.current_items != items {
+                                let item_strs: Vec<&str> =
+                                    items.iter().map(|item| item.as_ref()).collect();
+                                native_controls::set_native_combo_box_items(
+                                    state.combo_box_ptr as native_controls::id,
+                                    &item_strs,
+                                );
+                                state.current_items = items.clone();
+                            }
+
+                            if state.current_selected != selected_index && !items.is_empty() {
+                                native_controls::set_native_combo_box_selected(
+                                    state.combo_box_ptr as native_controls::id,
+                                    selected_index,
+                                );
+                                state.current_selected = selected_index;
+                            }
+
+                            if state.current_editable != editable {
+                                native_controls::set_native_combo_box_editable(
+                                    state.combo_box_ptr as native_controls::id,
+                                    editable,
+                                );
+                                state.current_editable = editable;
+                            }
+
+                            if state.current_completes != completes {
+                                native_controls::set_native_combo_box_completes(
+                                    state.combo_box_ptr as native_controls::id,
+                                    completes,
+                                );
+                                state.current_completes = completes;
+                            }
+
+                            if editable && state.current_text != text {
+                                native_controls::set_native_combo_box_string_value(
+                                    state.combo_box_ptr as native_controls::id,
+                                    &text,
+                                );
+                                state.current_text = text.clone();
+                            }
+
+                            native_controls::set_native_control_enabled(
+                                state.combo_box_ptr as native_controls::id,
+                                !disabled,
+                            );
+                        }
+
+                        unsafe {
+                            native_controls::release_native_combo_box_delegate(state.delegate_ptr);
+                        }
+                        let callbacks = build_combo_box_callbacks_ios(
+                            on_change,
+                            on_select,
+                            next_frame_callbacks,
+                            invalidator,
+                        );
+                        unsafe {
+                            state.delegate_ptr = native_controls::set_native_combo_box_delegate(
+                                state.combo_box_ptr as native_controls::id,
+                                callbacks,
+                            );
+                        }
+
+                        state
+                    } else {
+                        let (combo_box_ptr, delegate_ptr, initial_text) = unsafe {
+                            let item_strs: Vec<&str> =
+                                items.iter().map(|item| item.as_ref()).collect();
+                            let combo = native_controls::create_native_combo_box(
+                                &item_strs,
+                                Some(selected_index),
+                                editable,
+                            );
+                            native_controls::set_native_combo_box_completes(combo, completes);
+
+                            if editable && !text.is_empty() {
+                                native_controls::set_native_combo_box_string_value(combo, &text);
+                            }
+
+                            native_controls::set_native_control_enabled(combo, !disabled);
+                            native_controls::attach_native_view_to_parent(
+                                combo,
+                                native_view as native_controls::id,
+                            );
+                            native_controls::set_native_view_frame(
+                                combo,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+
+                            let callbacks = build_combo_box_callbacks_ios(
+                                on_change,
+                                on_select,
+                                next_frame_callbacks,
+                                invalidator,
+                            );
+                            let delegate =
+                                native_controls::set_native_combo_box_delegate(combo, callbacks);
+
+                            let initial_text = if editable {
+                                if text.is_empty() {
+                                    SharedString::from(
+                                        native_controls::get_native_combo_box_string_value(combo),
+                                    )
+                                } else {
+                                    text.clone()
+                                }
+                            } else {
+                                SharedString::default()
+                            };
+
+                            (combo as *mut c_void, delegate, initial_text)
+                        };
+
+                        NativeComboBoxElementState {
+                            combo_box_ptr,
+                            delegate_ptr,
+                            current_items: items,
+                            current_selected: selected_index,
+                            current_text: initial_text,
+                            current_editable: editable,
+                            current_completes: completes,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn build_combo_box_callbacks_ios(
+    on_change: Option<Box<dyn Fn(&ComboBoxChangeEvent, &mut Window, &mut App) + 'static>>,
+    _on_select: Option<Box<dyn Fn(&ComboBoxSelectEvent, &mut Window, &mut App) + 'static>>,
+    next_frame_callbacks: Rc<std::cell::RefCell<Vec<super::native_element_helpers::FrameCallback>>>,
+    invalidator: crate::WindowInvalidator,
+) -> crate::platform::native_controls::TextFieldCallbacks {
+    let change_cb = on_change.map(|handler| {
+        schedule_native_callback(
+            Rc::new(handler),
+            |text| ComboBoxChangeEvent { text },
+            next_frame_callbacks.clone(),
+            invalidator.clone(),
+        )
+    });
+
+    // iOS combo box uses TextFieldCallbacks since it's backed by UITextField.
+    // on_select is not supported on iOS (no UIPickerView wired up).
+    crate::platform::native_controls::TextFieldCallbacks {
+        on_change: change_cb,
+        on_focus: None,
+        on_blur: None,
+        on_submit: None,
     }
 }
 

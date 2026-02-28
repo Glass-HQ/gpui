@@ -154,6 +154,16 @@ impl Drop for NativeSliderElementState {
                     native_controls::release_native_slider,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.slider_ptr,
+                    self.target_ptr,
+                    native_controls::release_native_slider_target,
+                    native_controls::release_native_slider,
+                );
+            }
         }
     }
 }
@@ -359,6 +369,163 @@ impl Element for NativeSlider {
                                 slider,
                                 bounds,
                                 native_view as cocoa::base::id,
+                                window.scale_factor(),
+                            );
+
+                            let target = if let Some(on_change) = on_change {
+                                let nfc = next_frame_callbacks.clone();
+                                let inv = invalidator.clone();
+                                let on_change = Rc::new(on_change);
+                                let callback = schedule_native_callback(
+                                    on_change,
+                                    |value| SliderChangeEvent { value },
+                                    nfc,
+                                    inv,
+                                );
+                                native_controls::set_native_slider_action(slider, callback)
+                            } else {
+                                std::ptr::null_mut()
+                            };
+
+                            (slider as *mut c_void, target)
+                        };
+
+                        NativeSliderElementState {
+                            slider_ptr,
+                            target_ptr,
+                            current_min: min,
+                            current_max: max,
+                            current_value: value,
+                            current_continuous: continuous,
+                            current_tick_marks: tick_marks,
+                            current_snap_to_ticks: snap_to_ticks,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let on_change = self.on_change.take();
+            let (min, max) = normalize_range(self.min, self.max);
+            let value = clamp_to_range(self.value, min, max);
+            let continuous = self.continuous;
+            let tick_marks = self.tick_marks;
+            let snap_to_ticks = self.snap_to_ticks;
+            let disabled = self.disabled;
+
+            let next_frame_callbacks = window.next_frame_callbacks.clone();
+            let invalidator = window.invalidator.clone();
+
+            window.with_optional_element_state::<NativeSliderElementState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.slider_ptr as native_controls::id,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+                            if state.current_min != min {
+                                native_controls::set_native_slider_min(
+                                    state.slider_ptr as native_controls::id,
+                                    min,
+                                );
+                                state.current_min = min;
+                            }
+                            if state.current_max != max {
+                                native_controls::set_native_slider_max(
+                                    state.slider_ptr as native_controls::id,
+                                    max,
+                                );
+                                state.current_max = max;
+                            }
+                            if state.current_value != value {
+                                native_controls::set_native_slider_value(
+                                    state.slider_ptr as native_controls::id,
+                                    value,
+                                );
+                                state.current_value = value;
+                            }
+                            if state.current_continuous != continuous {
+                                native_controls::set_native_slider_continuous(
+                                    state.slider_ptr as native_controls::id,
+                                    continuous,
+                                );
+                                state.current_continuous = continuous;
+                            }
+                            if state.current_tick_marks != tick_marks
+                                || state.current_snap_to_ticks != snap_to_ticks
+                            {
+                                let tick_count = tick_marks.map(|v| v as i64).unwrap_or(0);
+                                native_controls::set_native_slider_tick_marks(
+                                    state.slider_ptr as native_controls::id,
+                                    tick_count,
+                                    snap_to_ticks && tick_marks.is_some(),
+                                );
+                                state.current_tick_marks = tick_marks;
+                                state.current_snap_to_ticks = snap_to_ticks;
+                            }
+                            native_controls::set_native_control_enabled(
+                                state.slider_ptr as native_controls::id,
+                                !disabled,
+                            );
+                        }
+
+                        if let Some(on_change) = on_change {
+                            unsafe {
+                                native_controls::release_native_slider_target(state.target_ptr);
+                            }
+                            let nfc = next_frame_callbacks.clone();
+                            let inv = invalidator.clone();
+                            let on_change = Rc::new(on_change);
+                            let callback = schedule_native_callback(
+                                on_change,
+                                |value| SliderChangeEvent { value },
+                                nfc,
+                                inv,
+                            );
+                            unsafe {
+                                state.target_ptr = native_controls::set_native_slider_action(
+                                    state.slider_ptr as native_controls::id,
+                                    callback,
+                                );
+                            }
+                        }
+
+                        state
+                    } else {
+                        let (slider_ptr, target_ptr) = unsafe {
+                            let slider = native_controls::create_native_slider(min, max, value);
+                            native_controls::set_native_slider_continuous(slider, continuous);
+                            let tick_count = tick_marks.map(|v| v as i64).unwrap_or(0);
+                            native_controls::set_native_slider_tick_marks(
+                                slider,
+                                tick_count,
+                                snap_to_ticks && tick_marks.is_some(),
+                            );
+                            native_controls::set_native_control_enabled(slider, !disabled);
+                            native_controls::attach_native_view_to_parent(
+                                slider,
+                                native_view as native_controls::id,
+                            );
+                            native_controls::set_native_view_frame(
+                                slider,
+                                bounds,
+                                native_view as native_controls::id,
                                 window.scale_factor(),
                             );
 

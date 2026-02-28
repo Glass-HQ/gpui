@@ -80,6 +80,16 @@ impl Drop for NativeSwitchElementState {
                     native_controls::release_native_switch,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.switch_ptr,
+                    self.target_ptr,
+                    native_controls::release_native_switch_target,
+                    native_controls::release_native_switch,
+                );
+            }
         }
     }
 }
@@ -226,6 +236,116 @@ impl Element for NativeSwitch {
                                 switch,
                                 bounds,
                                 native_view as cocoa::base::id,
+                                window.scale_factor(),
+                            );
+
+                            let target = if let Some(on_change) = on_change {
+                                let nfc = next_frame_callbacks.clone();
+                                let inv = invalidator.clone();
+                                let on_change = Rc::new(on_change);
+                                let callback = schedule_native_callback(
+                                    on_change,
+                                    |checked| SwitchChangeEvent { checked },
+                                    nfc,
+                                    inv,
+                                );
+                                native_controls::set_native_switch_action(switch, callback)
+                            } else {
+                                std::ptr::null_mut()
+                            };
+
+                            (switch as *mut c_void, target)
+                        };
+
+                        NativeSwitchElementState {
+                            switch_ptr,
+                            target_ptr,
+                            current_checked: checked,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+            type Id = native_controls::id;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let on_change = self.on_change.take();
+            let checked = self.checked;
+            let disabled = self.disabled;
+
+            let next_frame_callbacks = window.next_frame_callbacks.clone();
+            let invalidator = window.invalidator.clone();
+
+            window.with_optional_element_state::<NativeSwitchElementState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.switch_ptr as Id,
+                                bounds,
+                                native_view as Id,
+                                window.scale_factor(),
+                            );
+                            if state.current_checked != checked {
+                                native_controls::set_native_switch_state(
+                                    state.switch_ptr as Id,
+                                    checked,
+                                );
+                                state.current_checked = checked;
+                            }
+                            native_controls::set_native_control_enabled(
+                                state.switch_ptr as Id,
+                                !disabled,
+                            );
+                        }
+
+                        if let Some(on_change) = on_change {
+                            unsafe {
+                                native_controls::release_native_switch_target(state.target_ptr);
+                            }
+                            let nfc = next_frame_callbacks.clone();
+                            let inv = invalidator.clone();
+                            let on_change = Rc::new(on_change);
+                            let callback = schedule_native_callback(
+                                on_change,
+                                |checked| SwitchChangeEvent { checked },
+                                nfc,
+                                inv,
+                            );
+                            unsafe {
+                                state.target_ptr = native_controls::set_native_switch_action(
+                                    state.switch_ptr as Id,
+                                    callback,
+                                );
+                            }
+                        }
+
+                        state
+                    } else {
+                        let (switch_ptr, target_ptr) = unsafe {
+                            let switch = native_controls::create_native_switch();
+                            native_controls::set_native_switch_state(switch, checked);
+                            native_controls::set_native_control_enabled(switch, !disabled);
+                            native_controls::attach_native_view_to_parent(
+                                switch,
+                                native_view as Id,
+                            );
+                            native_controls::set_native_view_frame(
+                                switch,
+                                bounds,
+                                native_view as Id,
                                 window.scale_factor(),
                             );
 

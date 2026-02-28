@@ -167,6 +167,13 @@ impl Drop for NativeStackViewState {
                 use crate::platform::native_controls;
                 native_controls::release_native_stack_view(self.view_ptr as cocoa::base::id);
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                native_controls::release_native_stack_view(
+                    self.view_ptr as native_controls::id,
+                );
+            }
         }
     }
 }
@@ -336,6 +343,123 @@ impl Element for NativeStackView {
                                 view,
                                 bounds,
                                 native_view as cocoa::base::id,
+                                window.scale_factor(),
+                            );
+
+                            NativeStackViewState {
+                                view_ptr: view as *mut c_void,
+                                current_spacing: spacing,
+                                current_distribution: distribution,
+                                current_alignment: alignment,
+                                current_edge_insets: edge_insets,
+                                attached: true,
+                            }
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let orientation = self.orientation;
+            let spacing = self.spacing;
+            let distribution = self.distribution;
+            let alignment = self.alignment;
+            let edge_insets = self.edge_insets;
+
+            window.with_optional_element_state::<NativeStackViewState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut element_state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                element_state.view_ptr as native_controls::id,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+
+                            if element_state.current_spacing != spacing {
+                                if let Some(s) = spacing {
+                                    native_controls::set_native_stack_view_spacing(
+                                        element_state.view_ptr as native_controls::id,
+                                        s,
+                                    );
+                                }
+                                element_state.current_spacing = spacing;
+                            }
+
+                            if element_state.current_distribution != distribution {
+                                native_controls::set_native_stack_view_distribution(
+                                    element_state.view_ptr as native_controls::id,
+                                    distribution.to_raw(),
+                                );
+                                element_state.current_distribution = distribution;
+                            }
+
+                            if element_state.current_alignment != alignment {
+                                native_controls::set_native_stack_view_alignment(
+                                    element_state.view_ptr as native_controls::id,
+                                    alignment.to_raw(),
+                                );
+                                element_state.current_alignment = alignment;
+                            }
+
+                            if element_state.current_edge_insets != edge_insets {
+                                if let Some((top, left, bottom, right)) = edge_insets {
+                                    native_controls::set_native_stack_view_edge_insets(
+                                        element_state.view_ptr as native_controls::id,
+                                        top,
+                                        left,
+                                        bottom,
+                                        right,
+                                    );
+                                }
+                                element_state.current_edge_insets = edge_insets;
+                            }
+                        }
+
+                        element_state
+                    } else {
+                        unsafe {
+                            let view =
+                                native_controls::create_native_stack_view(orientation.to_raw());
+
+                            if let Some(s) = spacing {
+                                native_controls::set_native_stack_view_spacing(view, s);
+                            }
+                            native_controls::set_native_stack_view_distribution(
+                                view,
+                                distribution.to_raw(),
+                            );
+                            native_controls::set_native_stack_view_alignment(
+                                view,
+                                alignment.to_raw(),
+                            );
+                            if let Some((top, left, bottom, right)) = edge_insets {
+                                native_controls::set_native_stack_view_edge_insets(
+                                    view, top, left, bottom, right,
+                                );
+                            }
+
+                            native_controls::attach_native_view_to_parent(
+                                view,
+                                native_view as native_controls::id,
+                            );
+                            native_controls::set_native_view_frame(
+                                view,
+                                bounds,
+                                native_view as native_controls::id,
                                 window.scale_factor(),
                             );
 

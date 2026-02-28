@@ -99,6 +99,16 @@ impl Drop for NativeCheckboxElementState {
                     native_controls::release_native_checkbox,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.native_checkbox_ptr,
+                    self.native_target_ptr,
+                    native_controls::release_native_checkbox_target,
+                    native_controls::release_native_checkbox,
+                );
+            }
         }
     }
 }
@@ -261,6 +271,128 @@ impl Element for NativeCheckbox {
                                 checkbox,
                                 bounds,
                                 native_view as cocoa::base::id,
+                                window.scale_factor(),
+                            );
+
+                            let target = if let Some(on_change) = on_change {
+                                let nfc = next_frame_callbacks.clone();
+                                let inv = invalidator.clone();
+                                let on_change = Rc::new(on_change);
+                                let callback = schedule_native_callback(
+                                    on_change,
+                                    |checked| CheckboxChangeEvent { checked },
+                                    nfc,
+                                    inv,
+                                );
+                                native_controls::set_native_checkbox_action(checkbox, callback)
+                            } else {
+                                std::ptr::null_mut()
+                            };
+
+                            (checkbox as *mut c_void, target)
+                        };
+
+                        NativeCheckboxElementState {
+                            native_checkbox_ptr: checkbox_ptr,
+                            native_target_ptr: target_ptr,
+                            current_label: label,
+                            current_checked: checked,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+            type Id = native_controls::id;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let on_change = self.on_change.take();
+            let label = self.label.clone();
+            let checked = self.checked;
+            let disabled = self.disabled;
+
+            let next_frame_callbacks = window.next_frame_callbacks.clone();
+            let invalidator = window.invalidator.clone();
+
+            window.with_optional_element_state::<NativeCheckboxElementState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.native_checkbox_ptr as Id,
+                                bounds,
+                                native_view as Id,
+                                window.scale_factor(),
+                            );
+                            if state.current_label != label {
+                                native_controls::set_native_checkbox_title(
+                                    state.native_checkbox_ptr as Id,
+                                    &label,
+                                );
+                                state.current_label = label.clone();
+                            }
+                            if state.current_checked != checked {
+                                native_controls::set_native_checkbox_state(
+                                    state.native_checkbox_ptr as Id,
+                                    checked,
+                                );
+                                state.current_checked = checked;
+                            }
+                            native_controls::set_native_control_enabled(
+                                state.native_checkbox_ptr as Id,
+                                !disabled,
+                            );
+                        }
+
+                        if let Some(on_change) = on_change {
+                            unsafe {
+                                native_controls::release_native_checkbox_target(
+                                    state.native_target_ptr,
+                                );
+                            }
+                            let nfc = next_frame_callbacks.clone();
+                            let inv = invalidator.clone();
+                            let on_change = Rc::new(on_change);
+                            let callback = schedule_native_callback(
+                                on_change,
+                                |checked| CheckboxChangeEvent { checked },
+                                nfc,
+                                inv,
+                            );
+                            unsafe {
+                                state.native_target_ptr =
+                                    native_controls::set_native_checkbox_action(
+                                        state.native_checkbox_ptr as Id,
+                                        callback,
+                                    );
+                            }
+                        }
+
+                        state
+                    } else {
+                        let (checkbox_ptr, target_ptr) = unsafe {
+                            let checkbox = native_controls::create_native_checkbox(&label);
+                            native_controls::set_native_checkbox_state(checkbox, checked);
+                            native_controls::set_native_control_enabled(checkbox, !disabled);
+                            native_controls::attach_native_view_to_parent(
+                                checkbox,
+                                native_view as Id,
+                            );
+                            native_controls::set_native_view_frame(
+                                checkbox,
+                                bounds,
+                                native_view as Id,
                                 window.scale_factor(),
                             );
 

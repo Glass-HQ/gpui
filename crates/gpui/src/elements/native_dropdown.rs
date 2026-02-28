@@ -102,6 +102,16 @@ impl Drop for NativeDropdownElementState {
                     native_controls::release_native_popup_button,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.control_ptr,
+                    self.target_ptr,
+                    native_controls::release_native_popup_target,
+                    native_controls::release_native_popup_button,
+                );
+            }
         }
     }
 }
@@ -285,6 +295,143 @@ impl Element for NativeDropdown {
                                 control,
                                 bounds,
                                 native_view as cocoa::base::id,
+                                window.scale_factor(),
+                            );
+                            native_controls::set_native_control_enabled(control, !disabled);
+
+                            let target = if let Some(on_select) = on_select {
+                                let nfc = next_frame_callbacks.clone();
+                                let inv = invalidator.clone();
+                                let on_select = Rc::new(on_select);
+                                let callback = schedule_native_callback(
+                                    on_select,
+                                    |index| DropdownSelectEvent { index },
+                                    nfc,
+                                    inv,
+                                );
+                                native_controls::set_native_popup_action(control, callback)
+                            } else {
+                                std::ptr::null_mut()
+                            };
+
+                            (control as *mut c_void, target)
+                        };
+
+                        NativeDropdownElementState {
+                            control_ptr,
+                            target_ptr,
+                            current_items: items,
+                            current_selected: clamped_selected,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+            type Id = native_controls::id;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let on_select = self.on_select.take();
+            let items = self.items.clone();
+            let selected_index = self.selected_index;
+            let disabled = self.disabled;
+
+            let next_frame_callbacks = window.next_frame_callbacks.clone();
+            let invalidator = window.invalidator.clone();
+
+            window.with_optional_element_state::<NativeDropdownElementState, _>(
+                id,
+                |prev_state, window| {
+                    let clamped_selected = clamp_selected_index(selected_index, items.len());
+
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.control_ptr as Id,
+                                bounds,
+                                native_view as Id,
+                                window.scale_factor(),
+                            );
+                        }
+
+                        let items_changed = state.current_items != items;
+                        if items_changed {
+                            let item_strs: Vec<&str> = items.iter().map(|s| s.as_ref()).collect();
+                            unsafe {
+                                native_controls::set_native_popup_items(
+                                    state.control_ptr as Id,
+                                    &item_strs,
+                                );
+                            }
+                            state.current_items = items.clone();
+                        }
+
+                        if items_changed || state.current_selected != clamped_selected {
+                            if !items.is_empty() {
+                                unsafe {
+                                    native_controls::set_native_popup_selected(
+                                        state.control_ptr as Id,
+                                        clamped_selected,
+                                    );
+                                }
+                            }
+                            state.current_selected = clamped_selected;
+                        }
+
+                        unsafe {
+                            native_controls::set_native_control_enabled(
+                                state.control_ptr as Id,
+                                !disabled,
+                            );
+                        }
+
+                        if let Some(on_select) = on_select {
+                            unsafe {
+                                native_controls::release_native_popup_target(state.target_ptr);
+                            }
+                            let nfc = next_frame_callbacks.clone();
+                            let inv = invalidator.clone();
+                            let on_select = Rc::new(on_select);
+                            let callback = schedule_native_callback(
+                                on_select,
+                                |index| DropdownSelectEvent { index },
+                                nfc,
+                                inv,
+                            );
+                            unsafe {
+                                state.target_ptr = native_controls::set_native_popup_action(
+                                    state.control_ptr as Id,
+                                    callback,
+                                );
+                            }
+                        }
+
+                        state
+                    } else {
+                        let (control_ptr, target_ptr) = unsafe {
+                            let item_strs: Vec<&str> = items.iter().map(|s| s.as_ref()).collect();
+                            let control = native_controls::create_native_popup_button(
+                                &item_strs,
+                                clamped_selected,
+                            );
+                            native_controls::attach_native_view_to_parent(
+                                control,
+                                native_view as Id,
+                            );
+                            native_controls::set_native_view_frame(
+                                control,
+                                bounds,
+                                native_view as Id,
                                 window.scale_factor(),
                             );
                             native_controls::set_native_control_enabled(control, !disabled);

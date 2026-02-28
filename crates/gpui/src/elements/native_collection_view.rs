@@ -128,6 +128,16 @@ impl Drop for NativeCollectionViewState {
                     native_controls::release_native_collection_view,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.control_ptr,
+                    self.target_ptr,
+                    native_controls::release_native_collection_target,
+                    native_controls::release_native_collection_view,
+                );
+            }
         }
     }
 }
@@ -347,6 +357,148 @@ impl Element for NativeCollectionView {
                                 control,
                                 bounds,
                                 native_view as cocoa::base::id,
+                                window.scale_factor(),
+                            );
+
+                            (control as *mut c_void, target)
+                        };
+
+                        NativeCollectionViewState {
+                            control_ptr,
+                            target_ptr,
+                            current_items: items,
+                            current_selected: selected_index,
+                            current_columns: columns,
+                            current_width: width,
+                            current_item_height: item_height,
+                            current_spacing: spacing,
+                            current_item_style: item_style,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let items = self.items.clone();
+            let selected_index = self.selected_index;
+            let columns = self.columns;
+            let width = bounds.size.width.0 as f64;
+            let item_height = self.item_height;
+            let spacing = self.spacing;
+            let item_style = self.item_style;
+
+            window.with_optional_element_state::<NativeCollectionViewState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.control_ptr as native_controls::id,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+                        }
+
+                        if state.current_columns != columns
+                            || (state.current_width - width).abs() > f64::EPSILON
+                            || state.current_item_height != item_height
+                            || state.current_spacing != spacing
+                        {
+                            let item_width = if columns > 0 {
+                                (width - spacing * (columns as f64 - 1.0)) / columns as f64
+                            } else {
+                                width
+                            };
+                            unsafe {
+                                native_controls::set_native_collection_layout(
+                                    state.control_ptr as native_controls::id,
+                                    item_width,
+                                    item_height,
+                                    spacing,
+                                );
+                            }
+                            state.current_columns = columns;
+                            state.current_width = width;
+                            state.current_item_height = item_height;
+                            state.current_spacing = spacing;
+                        }
+
+                        let needs_rebind = state.current_items != items
+                            || state.current_selected != selected_index
+                            || state.current_item_style != item_style;
+                        if needs_rebind {
+                            unsafe {
+                                native_controls::release_native_collection_target(state.target_ptr);
+                            }
+
+                            let ios_items: Vec<native_controls::IosCollectionItem> = items
+                                .iter()
+                                .map(|item| native_controls::IosCollectionItem {
+                                    text: item.to_string(),
+                                })
+                                .collect();
+                            unsafe {
+                                state.target_ptr =
+                                    native_controls::set_native_collection_data_source(
+                                        state.control_ptr as native_controls::id,
+                                        ios_items,
+                                    );
+                            }
+                            state.current_items = items.clone();
+                            state.current_selected = selected_index;
+                            state.current_item_style = item_style;
+                        }
+
+                        state
+                    } else {
+                        let item_width = if columns > 0 {
+                            (width - spacing * (columns as f64 - 1.0)) / columns as f64
+                        } else {
+                            width
+                        };
+
+                        let ios_items: Vec<native_controls::IosCollectionItem> = items
+                            .iter()
+                            .map(|item| native_controls::IosCollectionItem {
+                                text: item.to_string(),
+                            })
+                            .collect();
+
+                        let (control_ptr, target_ptr) = unsafe {
+                            let control = native_controls::create_native_collection_view();
+                            native_controls::set_native_collection_layout(
+                                control,
+                                item_width,
+                                item_height,
+                                spacing,
+                            );
+
+                            let target = native_controls::set_native_collection_data_source(
+                                control,
+                                ios_items,
+                            );
+
+                            native_controls::attach_native_view_to_parent(
+                                control,
+                                native_view as native_controls::id,
+                            );
+                            native_controls::set_native_view_frame(
+                                control,
+                                bounds,
+                                native_view as native_controls::id,
                                 window.scale_factor(),
                             );
 

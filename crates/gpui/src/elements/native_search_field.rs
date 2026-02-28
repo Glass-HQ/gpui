@@ -185,6 +185,16 @@ impl Drop for NativeSearchFieldElementState {
                     native_controls::release_native_search_field,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.search_field_ptr,
+                    self.delegate_ptr,
+                    native_controls::release_native_text_field_delegate,
+                    native_controls::release_native_search_field,
+                );
+            }
         }
     }
 }
@@ -431,6 +441,233 @@ impl Element for NativeSearchField {
                 },
             );
         }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let on_change = self.on_change.take();
+            let on_submit = self.on_submit.take();
+            let on_focus = self.on_focus.take();
+            let on_blur = self.on_blur.take();
+            let _on_move_up = self.on_move_up.take();
+            let _on_move_down = self.on_move_down.take();
+            let _on_cancel = self.on_cancel.take();
+            let identifier: SharedString = self.id.to_string().into();
+            let value = self.value.clone();
+            let placeholder = self.placeholder.clone();
+            let sends_immediately = self.sends_search_string_immediately;
+            let sends_whole = self.sends_whole_search_string;
+            let disabled = self.disabled;
+
+            let next_frame_callbacks = window.next_frame_callbacks.clone();
+            let invalidator = window.invalidator.clone();
+
+            window.with_optional_element_state::<NativeSearchFieldElementState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.search_field_ptr as native_controls::id,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+                            if state.current_identifier != identifier {
+                                native_controls::set_native_search_field_identifier(
+                                    state.search_field_ptr as native_controls::id,
+                                    identifier.as_ref(),
+                                );
+                                state.current_identifier = identifier.clone();
+                            }
+                            if state.current_placeholder != placeholder {
+                                native_controls::set_native_search_field_placeholder(
+                                    state.search_field_ptr as native_controls::id,
+                                    &placeholder,
+                                );
+                                state.current_placeholder = placeholder.clone();
+                            }
+                            if state.current_value != value {
+                                let actual = native_controls::get_native_text_field_string_value(
+                                    state.search_field_ptr as native_controls::id,
+                                );
+                                if actual.as_str() != value.as_ref() {
+                                    native_controls::set_native_search_field_string_value(
+                                        state.search_field_ptr as native_controls::id,
+                                        &value,
+                                    );
+                                }
+                                state.current_value = value.clone();
+                            }
+                            if state.current_sends_immediately != sends_immediately {
+                                native_controls::set_native_search_field_sends_immediately(
+                                    state.search_field_ptr as native_controls::id,
+                                    sends_immediately,
+                                );
+                                state.current_sends_immediately = sends_immediately;
+                            }
+                            if state.current_sends_whole != sends_whole {
+                                native_controls::set_native_search_field_sends_whole_string(
+                                    state.search_field_ptr as native_controls::id,
+                                    sends_whole,
+                                );
+                                state.current_sends_whole = sends_whole;
+                            }
+                            native_controls::set_native_control_enabled(
+                                state.search_field_ptr as native_controls::id,
+                                !disabled,
+                            );
+                        }
+
+                        unsafe {
+                            native_controls::release_native_text_field_delegate(state.delegate_ptr);
+                        }
+                        let callbacks = build_search_field_callbacks_ios(
+                            on_change,
+                            on_submit,
+                            on_focus,
+                            on_blur,
+                            next_frame_callbacks,
+                            invalidator,
+                        );
+                        unsafe {
+                            state.delegate_ptr = native_controls::set_native_text_field_delegate(
+                                state.search_field_ptr as native_controls::id,
+                                callbacks,
+                            );
+                        }
+                        state
+                    } else {
+                        let (search_field_ptr, delegate_ptr) = unsafe {
+                            let field = native_controls::create_native_search_field(&placeholder);
+                            native_controls::set_native_search_field_identifier(
+                                field,
+                                identifier.as_ref(),
+                            );
+                            if !value.is_empty() {
+                                native_controls::set_native_search_field_string_value(
+                                    field, &value,
+                                );
+                            }
+                            native_controls::set_native_search_field_sends_immediately(
+                                field,
+                                sends_immediately,
+                            );
+                            native_controls::set_native_search_field_sends_whole_string(
+                                field,
+                                sends_whole,
+                            );
+                            native_controls::set_native_control_enabled(field, !disabled);
+
+                            native_controls::attach_native_view_to_parent(
+                                field,
+                                native_view as native_controls::id,
+                            );
+                            native_controls::set_native_view_frame(
+                                field,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+
+                            let callbacks = build_search_field_callbacks_ios(
+                                on_change,
+                                on_submit,
+                                on_focus,
+                                on_blur,
+                                next_frame_callbacks,
+                                invalidator,
+                            );
+                            let delegate =
+                                native_controls::set_native_text_field_delegate(field, callbacks);
+
+                            (field as *mut c_void, delegate)
+                        };
+
+                        NativeSearchFieldElementState {
+                            search_field_ptr,
+                            delegate_ptr,
+                            current_identifier: identifier,
+                            current_placeholder: placeholder,
+                            current_value: value,
+                            current_sends_immediately: sends_immediately,
+                            current_sends_whole: sends_whole,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn build_search_field_callbacks_ios(
+    on_change: Option<Box<dyn Fn(&SearchChangeEvent, &mut Window, &mut App) + 'static>>,
+    on_submit: Option<Box<dyn Fn(&SearchSubmitEvent, &mut Window, &mut App) + 'static>>,
+    on_focus: Option<Box<dyn Fn(&mut Window, &mut App) + 'static>>,
+    on_blur: Option<Box<dyn Fn(&SearchSubmitEvent, &mut Window, &mut App) + 'static>>,
+    next_frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
+    invalidator: crate::WindowInvalidator,
+) -> crate::platform::native_controls::TextFieldCallbacks {
+    use crate::platform::native_controls::TextFieldCallbacks;
+
+    let change_cb = on_change.map(|h| {
+        schedule_native_callback(
+            Rc::new(h),
+            |text| SearchChangeEvent { text },
+            next_frame_callbacks.clone(),
+            invalidator.clone(),
+        )
+    });
+
+    let submit_cb = on_submit.map(|h| {
+        schedule_native_focus_callback(
+            Rc::new(move |window: &mut Window, cx: &mut App| {
+                let event = SearchSubmitEvent {
+                    text: String::new(),
+                };
+                h(&event, window, cx);
+            }),
+            next_frame_callbacks.clone(),
+            invalidator.clone(),
+        )
+    });
+
+    let begin_cb = on_focus.map(|h| {
+        schedule_native_focus_callback(
+            Rc::new(h),
+            next_frame_callbacks.clone(),
+            invalidator.clone(),
+        )
+    });
+
+    let end_cb = on_blur.map(|h| {
+        schedule_native_focus_callback(
+            Rc::new(move |window: &mut Window, cx: &mut App| {
+                let event = SearchSubmitEvent {
+                    text: String::new(),
+                };
+                h(&event, window, cx);
+            }),
+            next_frame_callbacks.clone(),
+            invalidator.clone(),
+        )
+    });
+
+    TextFieldCallbacks {
+        on_change: change_cb,
+        on_focus: begin_cb,
+        on_blur: end_cb,
+        on_submit: submit_cb,
     }
 }
 

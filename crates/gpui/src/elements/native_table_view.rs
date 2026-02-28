@@ -267,6 +267,16 @@ impl Drop for NativeTableViewState {
                     native_controls::release_native_table_view,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.control_ptr,
+                    self.target_ptr,
+                    native_controls::release_native_table_target,
+                    native_controls::release_native_table_view,
+                );
+            }
         }
     }
 }
@@ -566,6 +576,135 @@ impl Element for NativeTableView {
                                 control,
                                 bounds,
                                 native_view as cocoa::base::id,
+                                window.scale_factor(),
+                            );
+
+                            (control as *mut c_void, target)
+                        };
+
+                        NativeTableViewState {
+                            control_ptr,
+                            target_ptr,
+                            current_items: items,
+                            current_selected: selected_index,
+                            current_row_height: row_height,
+                            current_column_title: column_title,
+                            current_show_header: show_header,
+                            current_alternating_rows: alternating_rows,
+                            current_allows_multiple_selection: allows_multiple_selection,
+                            current_table_style: table_style,
+                            current_row_size_style: row_size_style,
+                            current_selection_highlight_style: selection_highlight_style,
+                            current_grid_mask: grid_mask,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let items = self.items.clone();
+            let selected_index = self.selected_index;
+            let row_height = self.row_height;
+            let allows_multiple_selection = self.allows_multiple_selection;
+
+            window.with_optional_element_state::<NativeTableViewState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.control_ptr as native_controls::id,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+                        }
+
+                        if state.current_row_height != row_height {
+                            unsafe {
+                                native_controls::set_native_table_row_height(
+                                    state.control_ptr as native_controls::id,
+                                    row_height,
+                                );
+                            }
+                            state.current_row_height = row_height;
+                        }
+
+                        if state.current_allows_multiple_selection != allows_multiple_selection {
+                            unsafe {
+                                native_controls::set_native_table_allows_multiple_selection(
+                                    state.control_ptr as native_controls::id,
+                                    allows_multiple_selection,
+                                );
+                            }
+                            state.current_allows_multiple_selection = allows_multiple_selection;
+                        }
+
+                        let needs_rebind = state.current_items != items
+                            || state.current_selected != selected_index;
+                        if needs_rebind {
+                            unsafe {
+                                native_controls::release_native_table_target(state.target_ptr);
+                            }
+
+                            let ios_rows: Vec<native_controls::IosTableRow> = items
+                                .iter()
+                                .map(|item| native_controls::IosTableRow {
+                                    text: item.to_string(),
+                                })
+                                .collect();
+                            unsafe {
+                                state.target_ptr = native_controls::set_native_table_items(
+                                    state.control_ptr as native_controls::id,
+                                    ios_rows,
+                                );
+                            }
+                            state.current_items = items.clone();
+                            state.current_selected = selected_index;
+                        }
+
+                        state
+                    } else {
+                        let ios_rows: Vec<native_controls::IosTableRow> = items
+                            .iter()
+                            .map(|item| native_controls::IosTableRow {
+                                text: item.to_string(),
+                            })
+                            .collect();
+
+                        let (control_ptr, target_ptr) = unsafe {
+                            let control = native_controls::create_native_table_view();
+                            native_controls::set_native_table_row_height(control, row_height);
+                            native_controls::set_native_table_allows_multiple_selection(
+                                control,
+                                allows_multiple_selection,
+                            );
+
+                            let target = native_controls::set_native_table_items(
+                                control,
+                                ios_rows,
+                            );
+
+                            native_controls::attach_native_view_to_parent(
+                                control,
+                                native_view as native_controls::id,
+                            );
+                            native_controls::set_native_view_frame(
+                                control,
+                                bounds,
+                                native_view as native_controls::id,
                                 window.scale_factor(),
                             );
 

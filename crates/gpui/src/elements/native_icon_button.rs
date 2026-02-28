@@ -112,6 +112,16 @@ impl Drop for NativeIconButtonState {
                     native_controls::release_native_button,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.native_button_ptr,
+                    self.native_target_ptr,
+                    native_controls::release_native_button_target,
+                    native_controls::release_native_icon_button,
+                );
+            }
         }
     }
 }
@@ -305,6 +315,149 @@ impl Element for NativeIconButton {
                                 button,
                                 bounds,
                                 native_view as cocoa::base::id,
+                                window.scale_factor(),
+                            );
+
+                            let target = if let Some(on_click) = on_click {
+                                let nfc = next_frame_callbacks.clone();
+                                let inv = invalidator.clone();
+                                let on_click = Rc::new(on_click);
+                                let callback = schedule_native_callback_no_args(
+                                    on_click,
+                                    || ClickEvent::default(),
+                                    nfc,
+                                    inv,
+                                );
+                                native_controls::set_native_button_action(button, callback)
+                            } else {
+                                std::ptr::null_mut()
+                            };
+
+                            (button as *mut c_void, target)
+                        };
+
+                        NativeIconButtonState {
+                            native_button_ptr: button_ptr,
+                            native_target_ptr: target_ptr,
+                            current_symbol: sf_symbol,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+            type Id = native_controls::id;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let on_click = self.on_click.take();
+            let sf_symbol = self.sf_symbol.clone();
+            let button_style = self.button_style;
+            let tint = self.tint;
+            let disabled = self.disabled;
+
+            let next_frame_callbacks = window.next_frame_callbacks.clone();
+            let invalidator = window.invalidator.clone();
+
+            window.with_optional_element_state::<NativeIconButtonState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.native_button_ptr as Id,
+                                bounds,
+                                native_view as Id,
+                                window.scale_factor(),
+                            );
+                            if state.current_symbol != sf_symbol {
+                                native_controls::set_native_icon_button_symbol(
+                                    state.native_button_ptr as Id,
+                                    &sf_symbol,
+                                );
+                                state.current_symbol = sf_symbol;
+                            }
+                            native_controls::set_native_control_enabled(
+                                state.native_button_ptr as Id,
+                                !disabled,
+                            );
+                        }
+
+                        if let Some(on_click) = on_click {
+                            unsafe {
+                                native_controls::release_native_button_target(
+                                    state.native_target_ptr,
+                                );
+                            }
+                            let nfc = next_frame_callbacks.clone();
+                            let inv = invalidator.clone();
+                            let on_click = Rc::new(on_click);
+                            let callback = schedule_native_callback_no_args(
+                                on_click,
+                                || ClickEvent::default(),
+                                nfc,
+                                inv,
+                            );
+                            unsafe {
+                                state.native_target_ptr = native_controls::set_native_button_action(
+                                    state.native_button_ptr as Id,
+                                    callback,
+                                );
+                            }
+                        }
+
+                        state
+                    } else {
+                        let (button_ptr, target_ptr) = unsafe {
+                            let button = native_controls::create_native_icon_button(&sf_symbol);
+
+                            // Apply style
+                            match button_style {
+                                NativeButtonStyle::Rounded => {
+                                    native_controls::set_native_button_bezel_style(button, 1);
+                                    native_controls::set_native_button_bordered(button, true);
+                                }
+                                NativeButtonStyle::Filled => {
+                                    native_controls::set_native_button_bezel_style(button, 12);
+                                    native_controls::set_native_button_bordered(button, true);
+                                }
+                                NativeButtonStyle::Inline => {
+                                    native_controls::set_native_button_bezel_style(button, 15);
+                                    native_controls::set_native_button_bordered(button, true);
+                                }
+                                NativeButtonStyle::Borderless => {
+                                    native_controls::set_native_button_bordered(button, false);
+                                }
+                            }
+
+                            // Apply tint
+                            if let Some(tint) = tint {
+                                let (r, g, b, a) = tint.rgba();
+                                native_controls::set_native_button_content_tint_color(
+                                    button, r, g, b, a,
+                                );
+                            }
+
+                            // Disabled state
+                            native_controls::set_native_control_enabled(button, !disabled);
+
+                            native_controls::attach_native_view_to_parent(
+                                button,
+                                native_view as Id,
+                            );
+                            native_controls::set_native_view_frame(
+                                button,
+                                bounds,
+                                native_view as Id,
                                 window.scale_factor(),
                             );
 

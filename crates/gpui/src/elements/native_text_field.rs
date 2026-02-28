@@ -192,6 +192,16 @@ impl Drop for NativeTextFieldElementState {
                     native_controls::release_native_text_field,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.native_field_ptr,
+                    self.native_delegate_ptr,
+                    native_controls::release_native_text_field_delegate,
+                    native_controls::release_native_text_field,
+                );
+            }
         }
     }
 }
@@ -431,6 +441,224 @@ impl Element for NativeTextField {
                 },
             );
         }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let on_change = self.on_change.take();
+            let on_submit = self.on_submit.take();
+            let on_focus = self.on_focus.take();
+            let on_blur = self.on_blur.take();
+            let value = self.value.clone();
+            let placeholder = self.placeholder.clone();
+            let secure = self.secure;
+            let disabled = self.disabled;
+            let field_style = self.field_style;
+
+            let next_frame_callbacks = window.next_frame_callbacks.clone();
+            let invalidator = window.invalidator.clone();
+
+            window.with_optional_element_state::<NativeTextFieldElementState, _>(
+                id,
+                |prev_state, window| {
+                    // If secure mode or bezel style changed, destroy old control to recreate.
+                    let prev_state = match prev_state {
+                        Some(Some(mut state))
+                            if state.current_secure != secure
+                                || state.current_style != field_style =>
+                        {
+                            unsafe {
+                                super::native_element_helpers::cleanup_native_control(
+                                    state.native_field_ptr,
+                                    state.native_delegate_ptr,
+                                    native_controls::release_native_text_field_delegate,
+                                    native_controls::release_native_text_field,
+                                );
+                            }
+                            state.attached = false;
+                            Some(None)
+                        }
+                        other => other,
+                    };
+
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.native_field_ptr as native_controls::id,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+                            if state.current_placeholder != placeholder {
+                                native_controls::set_native_text_field_placeholder(
+                                    state.native_field_ptr as native_controls::id,
+                                    &placeholder,
+                                );
+                                state.current_placeholder = placeholder;
+                            }
+                            if state.current_value != value {
+                                native_controls::set_native_text_field_string_value(
+                                    state.native_field_ptr as native_controls::id,
+                                    &value,
+                                );
+                                state.current_value = value;
+                            }
+                            native_controls::set_native_control_enabled(
+                                state.native_field_ptr as native_controls::id,
+                                !disabled,
+                            );
+                        }
+
+                        // Reconnect delegate callbacks
+                        unsafe {
+                            native_controls::release_native_text_field_delegate(
+                                state.native_delegate_ptr,
+                            );
+                        }
+                        let callbacks = build_text_field_callbacks_ios(
+                            on_change,
+                            on_submit,
+                            on_focus,
+                            on_blur,
+                            next_frame_callbacks,
+                            invalidator,
+                        );
+                        unsafe {
+                            state.native_delegate_ptr =
+                                native_controls::set_native_text_field_delegate(
+                                    state.native_field_ptr as native_controls::id,
+                                    callbacks,
+                                );
+                        }
+
+                        state
+                    } else {
+                        let (field_ptr, delegate_ptr) = unsafe {
+                            let field = if secure {
+                                native_controls::create_native_secure_text_field(&placeholder)
+                            } else {
+                                native_controls::create_native_text_field(&placeholder)
+                            };
+
+                            native_controls::set_native_text_field_bezel_style(
+                                field,
+                                field_style.to_ns_style(),
+                            );
+
+                            if !value.is_empty() {
+                                native_controls::set_native_text_field_string_value(field, &value);
+                            }
+
+                            native_controls::set_native_control_enabled(field, !disabled);
+
+                            native_controls::attach_native_view_to_parent(
+                                field,
+                                native_view as native_controls::id,
+                            );
+                            native_controls::set_native_view_frame(
+                                field,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+
+                            let callbacks = build_text_field_callbacks_ios(
+                                on_change,
+                                on_submit,
+                                on_focus,
+                                on_blur,
+                                next_frame_callbacks,
+                                invalidator,
+                            );
+                            let delegate =
+                                native_controls::set_native_text_field_delegate(field, callbacks);
+
+                            (field as *mut c_void, delegate)
+                        };
+
+                        NativeTextFieldElementState {
+                            native_field_ptr: field_ptr,
+                            native_delegate_ptr: delegate_ptr,
+                            current_placeholder: placeholder,
+                            current_value: value,
+                            current_secure: secure,
+                            current_style: field_style,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn build_text_field_callbacks_ios(
+    on_change: Option<Box<dyn Fn(&TextChangeEvent, &mut Window, &mut App) + 'static>>,
+    on_submit: Option<Box<dyn Fn(&TextSubmitEvent, &mut Window, &mut App) + 'static>>,
+    on_focus: Option<Box<dyn Fn(&mut Window, &mut App) + 'static>>,
+    on_blur: Option<Box<dyn Fn(&TextSubmitEvent, &mut Window, &mut App) + 'static>>,
+    next_frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
+    invalidator: crate::WindowInvalidator,
+) -> crate::platform::native_controls::TextFieldCallbacks {
+    use crate::platform::native_controls::TextFieldCallbacks;
+
+    let change_cb = on_change.map(|h| {
+        schedule_native_callback(
+            Rc::new(h),
+            |text| TextChangeEvent { text },
+            next_frame_callbacks.clone(),
+            invalidator.clone(),
+        )
+    });
+
+    let submit_cb = on_submit.map(|h| {
+        schedule_native_focus_callback(
+            Rc::new(move |window: &mut Window, cx: &mut App| {
+                let event = TextSubmitEvent {
+                    text: String::new(),
+                };
+                h(&event, window, cx);
+            }),
+            next_frame_callbacks.clone(),
+            invalidator.clone(),
+        )
+    });
+
+    let begin_cb = on_focus.map(|h| {
+        schedule_native_focus_callback(
+            Rc::new(h),
+            next_frame_callbacks.clone(),
+            invalidator.clone(),
+        )
+    });
+
+    let end_cb = on_blur.map(|h| {
+        schedule_native_focus_callback(
+            Rc::new(move |window: &mut Window, cx: &mut App| {
+                let event = TextSubmitEvent {
+                    text: String::new(),
+                };
+                h(&event, window, cx);
+            }),
+            next_frame_callbacks.clone(),
+            invalidator.clone(),
+        )
+    });
+
+    TextFieldCallbacks {
+        on_change: change_cb,
+        on_focus: begin_cb,
+        on_blur: end_cb,
+        on_submit: submit_cb,
     }
 }
 

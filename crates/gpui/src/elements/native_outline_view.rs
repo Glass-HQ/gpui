@@ -156,6 +156,16 @@ impl Drop for NativeOutlineViewState {
                     native_controls::release_native_outline_view,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.control_ptr,
+                    self.target_ptr,
+                    native_controls::release_native_outline_target,
+                    native_controls::release_native_outline_view,
+                );
+            }
         }
     }
 }
@@ -382,6 +392,120 @@ impl Element for NativeOutlineView {
                             native_controls::sync_native_outline_column_width(
                                 control,
                             );
+
+                            (control as *mut c_void, target)
+                        };
+
+                        NativeOutlineViewState {
+                            control_ptr,
+                            target_ptr,
+                            current_nodes: nodes,
+                            current_selected_row: selected_row,
+                            current_row_height: row_height,
+                            current_expand_all: expand_all,
+                            current_highlight: highlight,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let nodes = self.nodes.clone();
+            let selected_row = self.selected_row;
+            let row_height = self.row_height;
+            let expand_all = self.expand_all;
+            let highlight = self.highlight;
+
+            window.with_optional_element_state::<NativeOutlineViewState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.control_ptr as native_controls::id,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+                            native_controls::sync_native_outline_column_width(
+                                state.control_ptr as native_controls::id,
+                            );
+                        }
+
+                        if state.current_row_height != row_height {
+                            unsafe {
+                                native_controls::set_native_outline_row_height(
+                                    state.control_ptr as native_controls::id,
+                                    row_height,
+                                );
+                            }
+                            state.current_row_height = row_height;
+                        }
+
+                        if state.current_highlight != highlight {
+                            unsafe {
+                                native_controls::set_native_outline_highlight_style(
+                                    state.control_ptr as native_controls::id,
+                                    highlight.to_ns_style(),
+                                );
+                            }
+                            state.current_highlight = highlight;
+                        }
+
+                        let needs_rebind = state.current_nodes != nodes
+                            || state.current_selected_row != selected_row
+                            || state.current_expand_all != expand_all;
+                        if needs_rebind {
+                            unsafe {
+                                native_controls::release_native_outline_target(state.target_ptr);
+                                state.target_ptr = native_controls::set_native_outline_items(
+                                    state.control_ptr as native_controls::id,
+                                    std::ptr::null_mut(),
+                                );
+                            }
+                            state.current_nodes = nodes.clone();
+                            state.current_selected_row = selected_row;
+                            state.current_expand_all = expand_all;
+                        }
+
+                        state
+                    } else {
+                        let (control_ptr, target_ptr) = unsafe {
+                            let control = native_controls::create_native_outline_view();
+                            native_controls::set_native_outline_row_height(control, row_height);
+                            native_controls::set_native_outline_highlight_style(
+                                control,
+                                highlight.to_ns_style(),
+                            );
+
+                            let target = native_controls::set_native_outline_items(
+                                control,
+                                std::ptr::null_mut(),
+                            );
+
+                            native_controls::attach_native_view_to_parent(
+                                control,
+                                native_view as native_controls::id,
+                            );
+                            native_controls::set_native_view_frame(
+                                control,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+                            native_controls::sync_native_outline_column_width(control);
 
                             (control as *mut c_void, target)
                         };

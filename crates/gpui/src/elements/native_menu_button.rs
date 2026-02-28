@@ -230,6 +230,16 @@ impl Drop for NativeMenuButtonState {
                     native_controls::release_native_menu_button,
                 );
             }
+            #[cfg(target_os = "ios")]
+            unsafe {
+                use crate::platform::native_controls;
+                super::native_element_helpers::cleanup_native_control(
+                    self.control_ptr,
+                    self.target_ptr,
+                    native_controls::release_native_menu_button_target,
+                    native_controls::release_native_menu_button,
+                );
+            }
         }
     }
 }
@@ -266,6 +276,27 @@ fn map_items(
     }
 
     items.iter().map(convert).collect()
+}
+
+#[cfg(target_os = "ios")]
+fn flatten_menu_titles(items: &[NativeMenuItem]) -> Vec<String> {
+    fn collect(item: &NativeMenuItem, out: &mut Vec<String>) {
+        match item {
+            NativeMenuItem::Action { title, .. } => out.push(title.to_string()),
+            NativeMenuItem::Submenu { title, items, .. } => {
+                out.push(title.to_string());
+                for child in items {
+                    collect(child, out);
+                }
+            }
+            NativeMenuItem::Separator => {}
+        }
+    }
+    let mut out = Vec::new();
+    for item in items {
+        collect(item, &mut out);
+    }
+    out
 }
 
 impl IntoElement for NativeMenuButton {
@@ -452,6 +483,110 @@ impl Element for NativeMenuButton {
                             );
 
                             (control as *mut c_void, target)
+                        };
+
+                        NativeMenuButtonState {
+                            control_ptr,
+                            target_ptr,
+                            current_label: label,
+                            current_items: items,
+                            attached: true,
+                        }
+                    };
+
+                    ((), Some(state))
+                },
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        {
+            use crate::platform::native_controls;
+
+            let native_view = window.raw_native_view_ptr();
+            if native_view.is_null() {
+                return;
+            }
+
+            let label = self.label.clone();
+            let items = self.items.clone();
+            let disabled = self.disabled;
+            let kind = self.kind;
+
+            window.with_optional_element_state::<NativeMenuButtonState, _>(
+                id,
+                |prev_state, window| {
+                    let state = if let Some(Some(mut state)) = prev_state {
+                        unsafe {
+                            native_controls::set_native_view_frame(
+                                state.control_ptr as native_controls::id,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+
+                            native_controls::set_native_control_enabled(
+                                state.control_ptr as native_controls::id,
+                                !disabled,
+                            );
+                        }
+
+                        if state.current_label != label {
+                            unsafe {
+                                native_controls::set_native_menu_button_title(
+                                    state.control_ptr as native_controls::id,
+                                    &label,
+                                );
+                            }
+                            state.current_label = label.clone();
+                        }
+
+                        if state.current_items != items {
+                            let titles = flatten_menu_titles(&items);
+                            let title_refs: Vec<&str> =
+                                titles.iter().map(|s| s.as_str()).collect();
+                            unsafe {
+                                native_controls::set_native_menu_button_items(
+                                    state.control_ptr as native_controls::id,
+                                    &title_refs,
+                                );
+                            }
+                            state.current_items = items.clone();
+                        }
+
+                        state
+                    } else {
+                        let (control_ptr, target_ptr) = unsafe {
+                            let control = match kind {
+                                NativeMenuKind::Button => {
+                                    native_controls::create_native_menu_button(&label)
+                                }
+                                NativeMenuKind::Context => {
+                                    native_controls::create_native_context_menu_button(&label)
+                                }
+                            };
+
+                            native_controls::set_native_control_enabled(control, !disabled);
+
+                            let titles = flatten_menu_titles(&items);
+                            let title_refs: Vec<&str> =
+                                titles.iter().map(|s| s.as_str()).collect();
+                            native_controls::set_native_menu_button_items(
+                                control, &title_refs,
+                            );
+
+                            native_controls::attach_native_view_to_parent(
+                                control,
+                                native_view as native_controls::id,
+                            );
+                            native_controls::set_native_view_frame(
+                                control,
+                                bounds,
+                                native_view as native_controls::id,
+                                window.scale_factor(),
+                            );
+
+                            (control as *mut c_void, std::ptr::null_mut())
                         };
 
                         NativeMenuButtonState {
