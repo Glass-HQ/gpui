@@ -37,11 +37,12 @@ pub(crate) mod scap_screen_capture;
 
 use crate::{
     Action, AnyWindowHandle, App, AsyncWindowContext, BackgroundExecutor, Bounds,
-    DEFAULT_WINDOW_SIZE, DevicePixels, DispatchEventResult, Font, FontId, FontMetrics, FontRun,
-    ForegroundExecutor, GlyphId, GpuSpecs, ImageSource, Keymap, LineLayout, Pixels, PlatformInput,
-    Point, Priority, RenderGlyphParams, RenderImage, RenderImageParams, RenderSvgParams, Scene,
-    ShapedGlyph, ShapedRun, SharedString, Size, SvgRenderer, SystemWindowTab, Task, TaskTiming,
-    ThreadTaskTimings, Window, WindowControlArea, hash, point, px, size,
+    DEFAULT_WINDOW_SIZE, DevicePixels, DispatchEventResult, Edges, Font, FontId, FontMetrics,
+    FontRun, ForegroundExecutor, GlyphId, GpuSpecs, ImageSource, Keymap, LineLayout, Pixels,
+    PlatformInput, Point, Priority, RenderGlyphParams, RenderImage, RenderImageParams,
+    RenderSvgParams, Scene, ShapedGlyph, ShapedRun, SharedString, Size, SvgRenderer,
+    SystemWindowTab, Task, TaskTiming, ThreadTaskTimings, Window, WindowControlArea, hash, point,
+    px, size,
 };
 use anyhow::Result;
 use async_task::Runnable;
@@ -851,6 +852,15 @@ pub(crate) trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
 
     fn titlebar_height(&self) -> Pixels {
         px(0.0)
+    }
+
+    /// Safe area insets for this window (notch, home indicator, status bar, etc.).
+    ///
+    /// On iOS, these are read from UIKit's `safeAreaInsets` and describe how
+    /// much to inset content from each edge to avoid system UI elements.
+    /// On all other platforms, returns zero insets.
+    fn safe_area_insets(&self) -> Edges<Pixels> {
+        Edges::default()
     }
 
     // macOS specific methods

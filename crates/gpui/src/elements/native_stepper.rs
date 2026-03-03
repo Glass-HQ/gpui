@@ -186,13 +186,20 @@ impl Element for NativeStepper {
         let mut style = Style::default();
         style.refine(&self.style);
 
+        // UIStepper (iOS) intrinsic size: 94×29pt
+        // NSStepper (macOS) intrinsic size: 20×24pt
+        #[cfg(target_os = "ios")]
+        let (default_w, default_h) = (px(94.0), px(29.0));
+        #[cfg(not(target_os = "ios"))]
+        let (default_w, default_h) = (px(20.0), px(24.0));
+
         if matches!(style.size.width, Length::Auto) {
             style.size.width =
-                Length::Definite(DefiniteLength::Absolute(AbsoluteLength::Pixels(px(20.0))));
+                Length::Definite(DefiniteLength::Absolute(AbsoluteLength::Pixels(default_w)));
         }
         if matches!(style.size.height, Length::Auto) {
             style.size.height =
-                Length::Definite(DefiniteLength::Absolute(AbsoluteLength::Pixels(px(24.0))));
+                Length::Definite(DefiniteLength::Absolute(AbsoluteLength::Pixels(default_h)));
         }
 
         let layout_id = window.request_layout(style, [], cx);

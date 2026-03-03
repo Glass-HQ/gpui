@@ -4225,6 +4225,28 @@ impl Window {
         self.viewport_size
     }
 
+    /// Returns the safe area insets for this window.
+    ///
+    /// On iOS, these describe how much to inset content from each edge to avoid
+    /// system UI (status bar, notch, home indicator). Apply them as padding on
+    /// your root container so content is never clipped by device chrome.
+    ///
+    /// On all other platforms, returns zero insets — safe to call unconditionally.
+    ///
+    /// # Example
+    /// ```ignore
+    /// fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    ///     let safe = window.safe_area_insets();
+    ///     div()
+    ///         .size_full()
+    ///         .pt(safe.top).pb(safe.bottom).pl(safe.left).pr(safe.right)
+    ///         .child(/* your content */)
+    /// }
+    /// ```
+    pub fn safe_area_insets(&self) -> Edges<Pixels> {
+        self.platform_window.safe_area_insets()
+    }
+
     /// Returns whether this window is focused by the operating system (receiving key events).
     pub fn is_window_active(&self) -> bool {
         self.active.get()

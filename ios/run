@@ -65,6 +65,8 @@ if [[ -z "$DEMO" ]]; then
   echo "  rotation           Two-finger rotation with color shift"
   echo "  controls             GPUI-painted controls demo"
   echo "  native_controls      UIKit native controls demo"
+  echo "  safe_area            Visual safe area inset debugger"
+  echo "  layout_showcase      Layout API showcase (Flex/Gaps/Sizing/Overflow/Position)"
   echo ""
   echo "Usage:"
   echo "  ./ios/run <demo>           build + run on physical device"

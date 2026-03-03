@@ -126,13 +126,20 @@ impl Element for NativeSwitch {
         let mut style = Style::default();
         style.refine(&self.style);
 
+        // UISwitch (iOS) intrinsic size: 51×31pt
+        // NSSwitch (macOS) intrinsic size: 38×22pt
+        #[cfg(target_os = "ios")]
+        let (default_w, default_h) = (px(51.0), px(31.0));
+        #[cfg(not(target_os = "ios"))]
+        let (default_w, default_h) = (px(38.0), px(22.0));
+
         if matches!(style.size.width, Length::Auto) {
             style.size.width =
-                Length::Definite(DefiniteLength::Absolute(AbsoluteLength::Pixels(px(38.0))));
+                Length::Definite(DefiniteLength::Absolute(AbsoluteLength::Pixels(default_w)));
         }
         if matches!(style.size.height, Length::Auto) {
             style.size.height =
-                Length::Definite(DefiniteLength::Absolute(AbsoluteLength::Pixels(px(22.0))));
+                Length::Definite(DefiniteLength::Absolute(AbsoluteLength::Pixels(default_h)));
         }
 
         let layout_id = window.request_layout(style, [], cx);

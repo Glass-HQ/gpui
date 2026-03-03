@@ -8,9 +8,9 @@ mod text_system;
 use crate::platform::metal::renderer::{InstanceBufferPool, MetalRenderer, SharedRenderResources};
 use crate::{
     Action, AnyWindowHandle, BackgroundExecutor, Bounds, ClipboardItem, CursorStyle,
-    DispatchEventResult, DisplayId, DummyKeyboardMapper, ForegroundExecutor, GLOBAL_THREAD_TIMINGS,
-    GpuSpecs, KeyDownEvent, KeyUpEvent, Keymap, Keystroke, Menu, MenuItem, Modifiers,
-    ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    DispatchEventResult, DisplayId, DummyKeyboardMapper, Edges, ForegroundExecutor,
+    GLOBAL_THREAD_TIMINGS, GpuSpecs, KeyDownEvent, KeyUpEvent, Keymap, Keystroke, Menu, MenuItem,
+    Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
     NoopTextSystem, OwnedMenu, PathPromptOptions, PinchEvent, Pixels, Platform, PlatformAtlas,
     PlatformDispatcher, PlatformDisplay, PlatformInput, PlatformInputHandler,
     PlatformKeyboardLayout, PlatformKeyboardMapper, PlatformTextSystem, PlatformWindow, Point,
@@ -569,14 +569,20 @@ extern "C" fn handle_layout_subviews(this: &Object, _sel: Sel) {
         let device_width = new_size.width.0 * scale_factor;
         let device_height = new_size.height.0 * scale_factor;
 
+        // Read safe area insets while we have the view reference — they may change on rotation
+        let insets: UIEdgeInsets = msg_send![this, safeAreaInsets];
+
         let mut lock = state.lock();
         let size_changed = lock.bounds.size != new_size || lock.scale_factor != scale_factor;
         if !size_changed {
+            // Still update insets in case they changed without a size change
+            lock.safe_area_insets = insets;
             return;
         }
 
         lock.bounds.size = new_size;
         lock.scale_factor = scale_factor;
+        lock.safe_area_insets = insets;
 
         // The view's layer IS the Metal layer (via replace_layer), so UIKit
         // auto-sizes it. Just update the drawable size for rendering.
@@ -1322,7 +1328,20 @@ extern "C" fn handle_safe_area_insets_change(this: &Object, _sel: Sel) {
         };
 
         let insets: UIEdgeInsets = msg_send![this, safeAreaInsets];
-        state.lock().safe_area_insets = insets;
+
+        let mut lock = state.lock();
+        lock.safe_area_insets = insets;
+
+        // Fire on_resize so the window re-evaluates safe_area_insets() and redraws.
+        // We pass the same size — the viewport size hasn't changed, but the
+        // inset-aware layout must be recomputed.
+        let current_size = lock.bounds.size;
+        let scale_factor = lock.scale_factor;
+        if let Some(mut callback) = lock.on_resize.take() {
+            drop(lock);
+            callback(current_size, scale_factor);
+            state.lock().on_resize = Some(callback);
+        }
     }
 }
 
@@ -2753,6 +2772,16 @@ impl PlatformWindow for IosWindow {
 
     fn content_size(&self) -> crate::Size<Pixels> {
         self.bounds().size
+    }
+
+    fn safe_area_insets(&self) -> Edges<Pixels> {
+        let insets = self.0.lock().safe_area_insets;
+        Edges {
+            top: px(insets.top as f32),
+            right: px(insets.right as f32),
+            bottom: px(insets.bottom as f32),
+            left: px(insets.left as f32),
+        }
     }
 
     fn resize(&mut self, size: crate::Size<Pixels>) {

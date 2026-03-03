@@ -1,8 +1,9 @@
 use gpui::{
     div, native_button, native_checkbox, native_image_view, native_progress_bar, native_slider,
     native_stepper, native_switch, native_text_field, native_toggle_group, prelude::*, px, rgb,
-    App, Application, Context, FocusHandle, Focusable, KeyDownEvent, MouseButton,
-    NativeImageSymbolWeight, PinchEvent, RotationEvent, Window, WindowAppearance, WindowOptions,
+    rgba, App, Application, Context, FocusHandle, Focusable, KeyDownEvent,
+    MouseButton, NativeImageSymbolWeight, PinchEvent, RotationEvent, Window, WindowAppearance,
+    WindowOptions,
 };
 use log::LevelFilter;
 use std::io::Write;
@@ -254,9 +255,14 @@ fn run_ios_app<V: Render + 'static>(
 struct IosHelloWorld;
 
 impl Render for IosHelloWorld {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         div()
             .size_full()
+            .pt(safe.top)
+            .pb(safe.bottom)
+            .pl(safe.left)
+            .pr(safe.right)
             .flex()
             .flex_col()
             .items_center()
@@ -302,7 +308,8 @@ struct IosTouchDemo {
 }
 
 impl Render for IosTouchDemo {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         let tapped = self.tapped_box;
         let tap_count = self.tap_count;
 
@@ -316,6 +323,10 @@ impl Render for IosTouchDemo {
 
         div()
             .size_full()
+            .pt(safe.top)
+            .pb(safe.bottom)
+            .pl(safe.left)
+            .pr(safe.right)
             .flex()
             .flex_col()
             .items_center()
@@ -414,9 +425,14 @@ pub extern "C" fn gpui_ios_run_touch_demo() {
 struct IosTextDemo;
 
 impl Render for IosTextDemo {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         div()
             .size_full()
+            .pt(safe.top)
+            .pb(safe.bottom)
+            .pl(safe.left)
+            .pr(safe.right)
             .flex()
             .flex_col()
             .items_center()
@@ -468,6 +484,7 @@ struct IosLifecycleDemo {
 
 impl Render for IosLifecycleDemo {
     fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         let bounds = window.bounds();
         let appearance = window.appearance();
         let scale = window.scale_factor();
@@ -482,6 +499,10 @@ impl Render for IosLifecycleDemo {
 
         div()
             .size_full()
+            .pt(safe.top)
+            .pb(safe.bottom)
+            .pl(safe.left)
+            .pr(safe.right)
             .flex()
             .flex_col()
             .items_center()
@@ -542,6 +563,7 @@ struct IosCombinedDemo {
 
 impl Render for IosCombinedDemo {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         let bounds = window.bounds();
         let appearance = window.appearance();
         let scale = window.scale_factor();
@@ -575,6 +597,10 @@ impl Render for IosCombinedDemo {
 
         div()
             .size_full()
+            .pt(safe.top)
+            .pb(safe.bottom)
+            .pl(safe.left)
+            .pr(safe.right)
             .flex()
             .flex_col()
             .items_center()
@@ -695,7 +721,8 @@ pub extern "C" fn gpui_ios_run_combined_demo() {
 struct IosScrollDemo;
 
 impl Render for IosScrollDemo {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         let colors = [
             0xf38ba8u32,
             0xa6e3a1,
@@ -709,7 +736,7 @@ impl Render for IosScrollDemo {
             0xb4befe,
         ];
 
-        let mut scroll_content = div().flex().flex_col().gap(px(8.0)).p(px(16.0));
+        let mut scroll_content = div().flex().flex_col().gap(px(8.0)).p(px(16.0)).pb(safe.bottom);
 
         for i in 0..50 {
             let color = colors[i % colors.len()];
@@ -731,18 +758,24 @@ impl Render for IosScrollDemo {
             .size_full()
             .flex()
             .flex_col()
+            .pl(safe.left)
+            .pr(safe.right)
             .bg(rgb(0x1e1e2e))
             .text_color(rgb(0xcdd6f4))
             .child(
                 div()
                     .w_full()
-                    .h(px(60.0))
+                    .pt(safe.top)
                     .flex()
+                    .flex_col()
                     .items_center()
-                    .justify_center()
+                    .justify_end()
                     .bg(rgb(0x313244))
                     .child(
                         div()
+                            .h(px(60.0))
+                            .flex()
+                            .items_center()
                             .text_size(px(20.0))
                             .child("Scroll Demo (2-finger pan)"),
                     ),
@@ -778,9 +811,10 @@ impl Focusable for IosTextInputDemo {
 }
 
 impl Render for IosTextInputDemo {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         let text = self.text.clone();
-        let focused = self.focus_handle.is_focused(_window);
+        let focused = self.focus_handle.is_focused(window);
 
         let border_color = if focused { 0x89b4fau32 } else { 0x585b70 };
         let display_text = if text.is_empty() && !focused {
@@ -795,6 +829,10 @@ impl Render for IosTextInputDemo {
             .id("text-input-root")
             .track_focus(&self.focus_handle)
             .size_full()
+            .pt(safe.top)
+            .pb(safe.bottom)
+            .pl(safe.left)
+            .pr(safe.right)
             .flex()
             .flex_col()
             .items_center()
@@ -872,7 +910,8 @@ pub extern "C" fn gpui_ios_run_text_input_demo() {
 struct IosVerticalScrollDemo;
 
 impl Render for IosVerticalScrollDemo {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         let colors = [
             0xf38ba8u32,
             0xa6e3a1,
@@ -886,7 +925,7 @@ impl Render for IosVerticalScrollDemo {
             0xb4befe,
         ];
 
-        let mut list = div().flex().flex_col().gap(px(8.0)).p(px(16.0));
+        let mut list = div().flex().flex_col().gap(px(8.0)).p(px(16.0)).pb(safe.bottom);
 
         for i in 0..100 {
             let color = colors[i % colors.len()];
@@ -908,18 +947,24 @@ impl Render for IosVerticalScrollDemo {
             .size_full()
             .flex()
             .flex_col()
+            .pl(safe.left)
+            .pr(safe.right)
             .bg(rgb(0x1e1e2e))
             .text_color(rgb(0xcdd6f4))
             .child(
                 div()
                     .w_full()
-                    .h(px(60.0))
+                    .pt(safe.top)
                     .flex()
+                    .flex_col()
                     .items_center()
-                    .justify_center()
+                    .justify_end()
                     .bg(rgb(0x313244))
                     .child(
                         div()
+                            .h(px(60.0))
+                            .flex()
+                            .items_center()
                             .text_size(px(20.0))
                             .child("Vertical Scroll (1-finger)"),
                     ),
@@ -942,7 +987,8 @@ pub extern "C" fn gpui_ios_run_vertical_scroll_demo() {
 struct IosHorizontalScrollDemo;
 
 impl Render for IosHorizontalScrollDemo {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         let colors = [
             0xf38ba8u32,
             0xa6e3a1,
@@ -998,26 +1044,35 @@ impl Render for IosHorizontalScrollDemo {
             .child(
                 div()
                     .w_full()
-                    .h(px(60.0))
+                    .pt(safe.top)
                     .flex()
+                    .flex_col()
                     .items_center()
-                    .justify_center()
+                    .justify_end()
                     .bg(rgb(0x313244))
                     .child(
                         div()
+                            .h(px(60.0))
+                            .flex()
+                            .items_center()
                             .text_size(px(20.0))
                             .child("Horizontal Scroll (1-finger)"),
                     ),
             )
             .child(
-                div().flex_1().flex().items_center().child(
-                    div()
-                        .id("hscroll")
-                        .w_full()
-                        .h(px(220.0))
-                        .overflow_x_scroll()
-                        .child(strip),
-                ),
+                div()
+                    .flex_1()
+                    .pb(safe.bottom)
+                    .flex()
+                    .items_center()
+                    .child(
+                        div()
+                            .id("hscroll")
+                            .w_full()
+                            .h(px(220.0))
+                            .overflow_x_scroll()
+                            .child(strip),
+                    ),
             )
     }
 }
@@ -1038,13 +1093,18 @@ struct IosPinchDemo {
 }
 
 impl Render for IosPinchDemo {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         let scale = self.scale;
         let size = 120.0 * scale;
 
         div()
             .id("pinch-root")
             .size_full()
+            .pt(safe.top)
+            .pb(safe.bottom)
+            .pl(safe.left)
+            .pr(safe.right)
             .flex()
             .flex_col()
             .items_center()
@@ -1095,7 +1155,8 @@ struct IosRotationDemo {
 }
 
 impl Render for IosRotationDemo {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         let angle_deg = self.angle_rad.to_degrees();
 
         // Map angle to a hue shift for visual feedback
@@ -1106,6 +1167,10 @@ impl Render for IosRotationDemo {
         div()
             .id("rotation-root")
             .size_full()
+            .pt(safe.top)
+            .pb(safe.bottom)
+            .pl(safe.left)
+            .pr(safe.right)
             .flex()
             .flex_col()
             .items_center()
@@ -1194,6 +1259,7 @@ impl Focusable for IosControlsDemo {
 
 impl Render for IosControlsDemo {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         let button_tap_count = self.button_tap_count;
         let switch_on = self.switch_on;
         let checkbox_checked = self.checkbox_checked;
@@ -1292,7 +1358,13 @@ impl Render for IosControlsDemo {
             );
         }
 
-        let mut content = div().flex().flex_col().gap(px(10.0)).p(px(20.0)).w_full();
+        let mut content = div()
+            .flex()
+            .flex_col()
+            .gap(px(10.0))
+            .p(px(20.0))
+            .pb(safe.bottom)
+            .w_full();
 
         content = content.child(
             div()
@@ -1605,17 +1677,26 @@ impl Render for IosControlsDemo {
             .size_full()
             .flex()
             .flex_col()
+            .pl(safe.left)
+            .pr(safe.right)
             .bg(rgb(0x1e1e2e))
             .text_color(rgb(0xcdd6f4))
             .child(
                 div()
                     .w_full()
-                    .h(px(60.0))
+                    .pt(safe.top)
                     .flex()
+                    .flex_col()
                     .items_center()
-                    .justify_center()
+                    .justify_end()
                     .bg(rgb(0x313244))
-                    .child(div().text_size(px(20.0)).child("Controls Demo")),
+                    .child(
+                        div()
+                            .h(px(60.0))
+                            .flex()
+                            .items_center()
+                            .child(div().text_size(px(20.0)).child("Controls Demo")),
+                    ),
             )
             .child(
                 div()
@@ -1659,7 +1740,8 @@ struct IosNativeControlsDemo {
 }
 
 impl Render for IosNativeControlsDemo {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
         let button_tap_count = self.button_tap_count;
         let switch_on = self.switch_on;
         let checkbox_checked = self.checkbox_checked;
@@ -1685,7 +1767,7 @@ impl Render for IosNativeControlsDemo {
                         .flex_shrink_0()
                         .child(label.to_string()),
                 )
-                .child(control)
+                .child(div().flex_shrink_0().child(control))
         }
 
         // Section header
@@ -1698,7 +1780,13 @@ impl Render for IosNativeControlsDemo {
             )
         };
 
-        let mut content = div().flex().flex_col().gap(px(10.0)).p(px(20.0)).w_full();
+        let mut content = div()
+            .flex()
+            .flex_col()
+            .gap(px(10.0))
+            .p(px(20.0))
+            .pb(safe.bottom)
+            .w_full();
 
         // --- Title ---
         content = content.child(
@@ -1902,17 +1990,26 @@ impl Render for IosNativeControlsDemo {
             .size_full()
             .flex()
             .flex_col()
+            .pl(safe.left)
+            .pr(safe.right)
             .bg(rgb(0x1e1e2e))
             .text_color(rgb(0xcdd6f4))
             .child(
                 div()
                     .w_full()
-                    .h(px(60.0))
+                    .pt(safe.top)
                     .flex()
+                    .flex_col()
                     .items_center()
-                    .justify_center()
+                    .justify_end()
                     .bg(rgb(0x313244))
-                    .child(div().text_size(px(20.0)).child("Native Controls Demo")),
+                    .child(
+                        div()
+                            .h(px(60.0))
+                            .flex()
+                            .items_center()
+                            .child(div().text_size(px(20.0)).child("Native Controls Demo")),
+                    ),
             )
             .child(
                 div()
@@ -1941,6 +2038,938 @@ pub extern "C" fn gpui_ios_run_native_controls_demo() {
 }
 
 // ---------------------------------------------------------------------------
+// 14. Safe Area Demo — visual safe area inset display + opt-out example
+// ---------------------------------------------------------------------------
+
+struct IosSafeAreaDemo {
+    show_raw: bool,
+}
+
+impl Render for IosSafeAreaDemo {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
+        let show_raw = self.show_raw;
+
+        // Visual: show a colored band along each safe area edge
+        let inset_label = |label: &str, px_val: f32| -> String {
+            format!("{}: {:.0}px", label, px_val)
+        };
+
+        // The outer div fills the full screen — background visible behind notch/home indicator
+        div()
+            .size_full()
+            .bg(rgb(0x1e1e2e))
+            .relative()
+            // Top safe area band (shows the notch zone)
+            .child(
+                div()
+                    .absolute()
+                    .top(px(0.0))
+                    .left(px(0.0))
+                    .right(px(0.0))
+                    .h(safe.top)
+                    .bg(rgba(0xcba6f730))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        div()
+                            .text_size(px(10.0))
+                            .text_color(rgb(0xcba6f7))
+                            .child(inset_label("top", f32::from(safe.top))),
+                    ),
+            )
+            // Bottom safe area band (home indicator)
+            .child(
+                div()
+                    .absolute()
+                    .bottom(px(0.0))
+                    .left(px(0.0))
+                    .right(px(0.0))
+                    .h(safe.bottom)
+                    .bg(rgba(0xf38ba830))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        div()
+                            .text_size(px(10.0))
+                            .text_color(rgb(0xf38ba8))
+                            .child(inset_label("bottom", f32::from(safe.bottom))),
+                    ),
+            )
+            // Left safe area band (landscape notch side)
+            .child(
+                div()
+                    .absolute()
+                    .top(safe.top)
+                    .bottom(safe.bottom)
+                    .left(px(0.0))
+                    .w(safe.left)
+                    .bg(rgba(0x89b4fa30))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        div()
+                            .text_size(px(10.0))
+                            .text_color(rgb(0x89b4fa))
+                            .child(inset_label("l", f32::from(safe.left))),
+                    ),
+            )
+            // Right safe area band (landscape home indicator side)
+            .child(
+                div()
+                    .absolute()
+                    .top(safe.top)
+                    .bottom(safe.bottom)
+                    .right(px(0.0))
+                    .w(safe.right)
+                    .bg(rgba(0xa6e3a130))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        div()
+                            .text_size(px(10.0))
+                            .text_color(rgb(0xa6e3a1))
+                            .child(inset_label("r", f32::from(safe.right))),
+                    ),
+            )
+            // Safe content area — the green rectangle shows the actual safe zone
+            .child(
+                div()
+                    .absolute()
+                    .top(safe.top)
+                    .bottom(safe.bottom)
+                    .left(safe.left)
+                    .right(safe.right)
+                    .border_2()
+                    .border_color(rgb(0xa6e3a1))
+                    .rounded(px(4.0))
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(12.0))
+                    .text_color(rgb(0xcdd6f4))
+                    .child(div().text_size(px(18.0)).child("Safe Area Demo"))
+                    .child(
+                        div()
+                            .text_size(px(13.0))
+                            .text_color(rgb(0xa6adc8))
+                            .child("Colored bands = unsafe zones"),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(13.0))
+                            .text_color(rgb(0xa6adc8))
+                            .child("Green border = safe content area"),
+                    )
+                    .child(
+                        div()
+                            .p(px(12.0))
+                            .bg(rgb(0x313244))
+                            .rounded(px(8.0))
+                            .flex()
+                            .flex_col()
+                            .gap(px(4.0))
+                            .child(
+                                div()
+                                    .text_size(px(12.0))
+                                    .text_color(rgb(0xcba6f7))
+                                    .child(format!("top:    {:.0}px", f32::from(safe.top))),
+                            )
+                            .child(
+                                div()
+                                    .text_size(px(12.0))
+                                    .text_color(rgb(0xf38ba8))
+                                    .child(format!("bottom: {:.0}px", f32::from(safe.bottom))),
+                            )
+                            .child(
+                                div()
+                                    .text_size(px(12.0))
+                                    .text_color(rgb(0x89b4fa))
+                                    .child(format!("left:   {:.0}px", f32::from(safe.left))),
+                            )
+                            .child(
+                                div()
+                                    .text_size(px(12.0))
+                                    .text_color(rgb(0xa6e3a1))
+                                    .child(format!("right:  {:.0}px", f32::from(safe.right))),
+                            ),
+                    )
+                    // Toggle button to demo ignoring safe area vs respecting it
+                    .child(
+                        div()
+                            .id("toggle-safe")
+                            .px(px(16.0))
+                            .py(px(8.0))
+                            .rounded(px(8.0))
+                            .bg(if show_raw {
+                                rgb(0xf38ba8)
+                            } else {
+                                rgb(0xa6e3a1)
+                            })
+                            .text_color(rgb(0x1e1e2e))
+                            .text_size(px(13.0))
+                            .child(if show_raw {
+                                "Mode: Full Screen (unsafe)"
+                            } else {
+                                "Mode: Safe Area (default)"
+                            })
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(|this, _, _, cx| {
+                                    this.show_raw = !this.show_raw;
+                                    cx.notify();
+                                }),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(11.0))
+                            .text_color(rgb(0x6c7086))
+                            .child("Tap button to toggle safe area mode"),
+                    ),
+            )
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gpui_ios_run_safe_area_demo() {
+    run_ios_app("dev.glasshq.GPUIiOSSafeAreaDemo", |_, _| IosSafeAreaDemo {
+        show_raw: false,
+    });
+}
+
+// ---------------------------------------------------------------------------
+// 15. Layout Showcase — comprehensive demo of all GPUI layout APIs
+// ---------------------------------------------------------------------------
+
+struct IosLayoutShowcase {
+    selected_tab: usize,
+}
+
+impl Render for IosLayoutShowcase {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
+        let selected_tab = self.selected_tab;
+
+        // Tab labels
+        let tabs = ["Flex", "Gaps", "Sizing", "Overflow", "Position"];
+
+        // Tab bar at bottom (like a native iOS tab bar)
+        let tab_bar = div()
+            .w_full()
+            .pb(safe.bottom)
+            .bg(rgb(0x181825))
+            .border_t_1()
+            .border_color(rgb(0x313244))
+            .flex()
+            .flex_row()
+            .children(tabs.iter().enumerate().map(|(i, label)| {
+                let is_active = selected_tab == i;
+                div()
+                    .flex_1()
+                    .py(px(10.0))
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(2.0))
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _, _, cx| {
+                            this.selected_tab = i;
+                            cx.notify();
+                        }),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(11.0))
+                            .text_color(if is_active {
+                                rgb(0x89b4fa)
+                            } else {
+                                rgb(0x585b70)
+                            })
+                            .child(*label),
+                    )
+            }));
+
+        // Section label helper
+        fn section_label(text: &str) -> gpui::Div {
+            div()
+                .text_size(px(11.0))
+                .text_color(rgb(0x6c7086))
+                .pb(px(6.0))
+                .child(text.to_string())
+        }
+
+        // Content for each tab
+        let content = match selected_tab {
+            // --- Tab 0: Flexbox ---
+            0 => div()
+                .flex()
+                .flex_col()
+                .gap(px(16.0))
+                .p(px(16.0))
+                // Row: flex_row + justify_between
+                .child(section_label("flex_row + justify_between"))
+                .child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_row()
+                        .justify_between()
+                        .items_center()
+                        .child(div().w(px(60.0)).h(px(40.0)).bg(rgb(0xf38ba8)).rounded(px(6.0)))
+                        .child(div().w(px(60.0)).h(px(40.0)).bg(rgb(0xa6e3a1)).rounded(px(6.0)))
+                        .child(div().w(px(60.0)).h(px(40.0)).bg(rgb(0x89b4fa)).rounded(px(6.0))),
+                )
+                // Row: flex_row + justify_center + gap
+                .child(section_label("flex_row + justify_center + gap"))
+                .child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_row()
+                        .justify_center()
+                        .items_center()
+                        .gap(px(8.0))
+                        .child(div().w(px(50.0)).h(px(50.0)).bg(rgb(0xfab387)).rounded(px(8.0)))
+                        .child(div().w(px(50.0)).h(px(50.0)).bg(rgb(0xcba6f7)).rounded(px(8.0)))
+                        .child(div().w(px(50.0)).h(px(50.0)).bg(rgb(0xf9e2af)).rounded(px(8.0))),
+                )
+                // Column: items_start / center / end
+                .child(section_label("flex_col + items_start / center / end"))
+                .child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_row()
+                        .gap(px(8.0))
+                        .child(
+                            div()
+                                .flex_1()
+                                .h(px(80.0))
+                                .bg(rgb(0x313244))
+                                .rounded(px(6.0))
+                                .flex()
+                                .flex_col()
+                                .items_start()
+                                .p(px(4.0))
+                                .child(div().w(px(30.0)).h(px(20.0)).bg(rgb(0xf38ba8)).rounded(px(4.0)))
+                                .child(
+                                    div()
+                                        .text_size(px(9.0))
+                                        .text_color(rgb(0x6c7086))
+                                        .child("start"),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .h(px(80.0))
+                                .bg(rgb(0x313244))
+                                .rounded(px(6.0))
+                                .flex()
+                                .flex_col()
+                                .items_center()
+                                .p(px(4.0))
+                                .child(div().w(px(30.0)).h(px(20.0)).bg(rgb(0xa6e3a1)).rounded(px(4.0)))
+                                .child(
+                                    div()
+                                        .text_size(px(9.0))
+                                        .text_color(rgb(0x6c7086))
+                                        .child("center"),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .h(px(80.0))
+                                .bg(rgb(0x313244))
+                                .rounded(px(6.0))
+                                .flex()
+                                .flex_col()
+                                .items_end()
+                                .p(px(4.0))
+                                .child(div().w(px(30.0)).h(px(20.0)).bg(rgb(0x89b4fa)).rounded(px(4.0)))
+                                .child(
+                                    div()
+                                        .text_size(px(9.0))
+                                        .text_color(rgb(0x6c7086))
+                                        .child("end"),
+                                ),
+                        ),
+                )
+                // justify_start / center / end / between
+                .child(section_label("justify_start / center / end / between"))
+                .child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_col()
+                        .gap(px(6.0))
+                        .children(
+                            [
+                                ("start", 0x89b4fau32),
+                                ("center", 0xa6e3a1u32),
+                                ("end", 0xfab387u32),
+                                ("between", 0xcba6f7u32),
+                            ]
+                            .iter()
+                            .map(|(label, color)| {
+                                let row = div()
+                                    .w_full()
+                                    .h(px(28.0))
+                                    .bg(rgb(0x313244))
+                                    .rounded(px(4.0))
+                                    .flex()
+                                    .flex_row()
+                                    .items_center()
+                                    .gap(px(4.0));
+                                let row = match *label {
+                                    "start" => row.justify_start(),
+                                    "center" => row.justify_center(),
+                                    "end" => row.justify_end(),
+                                    _ => row.justify_between(),
+                                };
+                                row.child(div().w(px(20.0)).h(px(16.0)).bg(rgb(*color)).rounded(px(3.0)))
+                                    .child(div().w(px(20.0)).h(px(16.0)).bg(rgb(*color)).rounded(px(3.0)))
+                                    .child(
+                                        div()
+                                            .text_size(px(9.0))
+                                            .text_color(rgb(0x6c7086))
+                                            .child(label.to_string()),
+                                    )
+                            }),
+                        ),
+                )
+                .into_any_element(),
+
+            // --- Tab 1: Gaps & Padding ---
+            1 => div()
+                .flex()
+                .flex_col()
+                .gap(px(16.0))
+                .p(px(16.0))
+                // gap() uniform
+                .child(section_label("gap(px) — uniform spacing"))
+                .child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_row()
+                        .gap(px(4.0))
+                        .children((0..8).map(|_| {
+                            div()
+                                .flex_1()
+                                .h(px(32.0))
+                                .bg(rgb(0x89b4fa))
+                                .rounded(px(4.0))
+                        })),
+                )
+                .child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_row()
+                        .gap(px(12.0))
+                        .children((0..4).map(|_| {
+                            div()
+                                .flex_1()
+                                .h(px(32.0))
+                                .bg(rgb(0xcba6f7))
+                                .rounded(px(4.0))
+                        })),
+                )
+                // Padding variants
+                .child(section_label("padding — p / px / py / pt / pb / pl / pr"))
+                .child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_col()
+                        .gap(px(6.0))
+                        .child(
+                            div()
+                                .w_full()
+                                .bg(rgb(0x313244))
+                                .rounded(px(6.0))
+                                .p(px(16.0))
+                                .child(div().w_full().h(px(20.0)).bg(rgb(0xf38ba8)).rounded(px(4.0)).child(
+                                    div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("p(16)")
+                                )),
+                        )
+                        .child(
+                            div()
+                                .w_full()
+                                .bg(rgb(0x313244))
+                                .rounded(px(6.0))
+                                .px(px(24.0))
+                                .py(px(8.0))
+                                .child(div().w_full().h(px(20.0)).bg(rgb(0xa6e3a1)).rounded(px(4.0)).child(
+                                    div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("px(24) py(8)")
+                                )),
+                        )
+                        .child(
+                            div()
+                                .w_full()
+                                .bg(rgb(0x313244))
+                                .rounded(px(6.0))
+                                .pt(px(20.0))
+                                .pb(px(4.0))
+                                .pl(px(8.0))
+                                .pr(px(32.0))
+                                .child(div().w_full().h(px(20.0)).bg(rgb(0x89b4fa)).rounded(px(4.0)).child(
+                                    div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("pt20 pb4 pl8 pr32")
+                                )),
+                        ),
+                )
+                // Margin variants
+                .child(section_label("margin — m / mx / my / mt / mb / ml / mr"))
+                .child(
+                    div()
+                        .w_full()
+                        .bg(rgb(0x313244))
+                        .rounded(px(6.0))
+                        .flex()
+                        .flex_row()
+                        .child(
+                            div()
+                                .m(px(8.0))
+                                .flex_1()
+                                .h(px(36.0))
+                                .bg(rgb(0xf9e2af))
+                                .rounded(px(4.0))
+                                .child(div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("m(8)")),
+                        )
+                        .child(
+                            div()
+                                .mx(px(4.0))
+                                .my(px(12.0))
+                                .flex_1()
+                                .h(px(36.0))
+                                .bg(rgb(0x94e2d5))
+                                .rounded(px(4.0))
+                                .child(div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("mx4 my12")),
+                        ),
+                )
+                .into_any_element(),
+
+            // --- Tab 2: Sizing ---
+            2 => div()
+                .flex()
+                .flex_col()
+                .gap(px(16.0))
+                .p(px(16.0))
+                // Fixed sizes
+                .child(section_label("fixed w() / h()"))
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(6.0))
+                        .child(
+                            div()
+                                .w(px(100.0))
+                                .h(px(24.0))
+                                .bg(rgb(0xf38ba8))
+                                .rounded(px(4.0))
+                                .child(div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("w100 h24")),
+                        )
+                        .child(
+                            div()
+                                .w(px(200.0))
+                                .h(px(32.0))
+                                .bg(rgb(0xa6e3a1))
+                                .rounded(px(4.0))
+                                .child(div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("w200 h32")),
+                        )
+                        .child(
+                            div()
+                                .w(px(300.0))
+                                .h(px(40.0))
+                                .bg(rgb(0x89b4fa))
+                                .rounded(px(4.0))
+                                .child(div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("w300 h40")),
+                        ),
+                )
+                // w_full, flex_1, flex_shrink_0
+                .child(section_label("w_full / flex_1 / flex_shrink_0"))
+                .child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_row()
+                        .gap(px(6.0))
+                        .child(
+                            div()
+                                .flex_1()
+                                .h(px(40.0))
+                                .bg(rgb(0xfab387))
+                                .rounded(px(4.0))
+                                .child(div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("flex_1")),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .h(px(40.0))
+                                .bg(rgb(0xcba6f7))
+                                .rounded(px(4.0))
+                                .child(div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("flex_1")),
+                        )
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .w(px(80.0))
+                                .h(px(40.0))
+                                .bg(rgb(0xf9e2af))
+                                .rounded(px(4.0))
+                                .child(div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("shrink_0")),
+                        ),
+                )
+                // min/max width & height
+                .child(section_label("min_w / max_w / min_h / max_h"))
+                .child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_col()
+                        .gap(px(6.0))
+                        .child(
+                            div()
+                                .w_full()
+                                .bg(rgb(0x313244))
+                                .rounded(px(6.0))
+                                .p(px(8.0))
+                                .child(
+                                    div()
+                                        .min_w(px(80.0))
+                                        .max_w(px(200.0))
+                                        .h(px(28.0))
+                                        .bg(rgb(0x94e2d5))
+                                        .rounded(px(4.0))
+                                        .child(div().text_size(px(9.0)).text_color(rgb(0x1e1e2e)).child("min80 max200")),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .w_full()
+                                .bg(rgb(0x313244))
+                                .rounded(px(6.0))
+                                .p(px(8.0))
+                                .flex()
+                                .flex_row()
+                                .gap(px(4.0))
+                                .children((0..5).map(|i| {
+                                    div()
+                                        .flex_1()
+                                        .min_h(px(20.0))
+                                        .max_h(px(60.0))
+                                        .h(px(20.0 + i as f32 * 10.0))
+                                        .bg(rgb(0x89b4fa))
+                                        .rounded(px(4.0))
+                                })),
+                        ),
+                )
+                .into_any_element(),
+
+            // --- Tab 3: Overflow ---
+            3 => {
+                let scroll_colors = [
+                    0xf38ba8u32, 0xa6e3a1, 0x89b4fa, 0xfab387, 0xcba6f7, 0xf9e2af, 0x94e2d5,
+                ];
+
+                let mut vlist = div().flex().flex_col().gap(px(6.0));
+                for i in 0..20 {
+                    vlist = vlist.child(
+                        div()
+                            .w_full()
+                            .h(px(44.0))
+                            .bg(rgb(scroll_colors[i % scroll_colors.len()]))
+                            .rounded(px(6.0))
+                            .flex()
+                            .items_center()
+                            .px(px(12.0))
+                            .text_color(rgb(0x1e1e2e))
+                            .child(format!("overflow_y row {}", i + 1)),
+                    );
+                }
+
+                let mut hstrip = div().flex().flex_row().gap(px(8.0));
+                for i in 0..15 {
+                    hstrip = hstrip.child(
+                        div()
+                            .w(px(100.0))
+                            .h(px(80.0))
+                            .flex_shrink_0()
+                            .bg(rgb(scroll_colors[i % scroll_colors.len()]))
+                            .rounded(px(8.0))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_color(rgb(0x1e1e2e))
+                            .child(format!("{}", i + 1)),
+                    );
+                }
+
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(12.0))
+                    .p(px(16.0))
+                    .child(section_label("overflow_y_scroll"))
+                    .child(
+                        div()
+                            .id("overflow-y-demo")
+                            .w_full()
+                            .h(px(200.0))
+                            .overflow_y_scroll()
+                            .bg(rgb(0x181825))
+                            .rounded(px(8.0))
+                            .p(px(8.0))
+                            .child(vlist),
+                    )
+                    .child(section_label("overflow_x_scroll"))
+                    .child(
+                        div()
+                            .id("overflow-x-demo")
+                            .w_full()
+                            .overflow_x_scroll()
+                            .bg(rgb(0x181825))
+                            .rounded(px(8.0))
+                            .p(px(8.0))
+                            .child(hstrip),
+                    )
+                    .child(section_label("overflow_hidden (clips content)"))
+                    .child(
+                        div()
+                            .w(px(200.0))
+                            .h(px(60.0))
+                            .overflow_hidden()
+                            .bg(rgb(0x313244))
+                            .rounded(px(8.0))
+                            .flex()
+                            .items_center()
+                            .child(
+                                div()
+                                    .w(px(400.0))
+                                    .h(px(40.0))
+                                    .bg(rgb(0xf38ba8))
+                                    .flex()
+                                    .items_center()
+                                    .px(px(8.0))
+                                    .child("This text is wider than the container and gets clipped"),
+                            ),
+                    )
+                    .into_any_element()
+            }
+
+            // --- Tab 4: Position ---
+            _ => div()
+                .flex()
+                .flex_col()
+                .gap(px(16.0))
+                .p(px(16.0))
+                .child(section_label("relative + absolute positioning"))
+                .child(
+                    div()
+                        .w_full()
+                        .h(px(180.0))
+                        .bg(rgb(0x313244))
+                        .rounded(px(8.0))
+                        .relative()
+                        // Corners
+                        .child(
+                            div()
+                                .absolute()
+                                .top(px(8.0))
+                                .left(px(8.0))
+                                .w(px(48.0))
+                                .h(px(48.0))
+                                .bg(rgb(0xf38ba8))
+                                .rounded(px(6.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(px(8.0))
+                                .text_color(rgb(0x1e1e2e))
+                                .child("t8 l8"),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .top(px(8.0))
+                                .right(px(8.0))
+                                .w(px(48.0))
+                                .h(px(48.0))
+                                .bg(rgb(0xa6e3a1))
+                                .rounded(px(6.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(px(8.0))
+                                .text_color(rgb(0x1e1e2e))
+                                .child("t8 r8"),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .bottom(px(8.0))
+                                .left(px(8.0))
+                                .w(px(48.0))
+                                .h(px(48.0))
+                                .bg(rgb(0x89b4fa))
+                                .rounded(px(6.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(px(8.0))
+                                .text_color(rgb(0x1e1e2e))
+                                .child("b8 l8"),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .bottom(px(8.0))
+                                .right(px(8.0))
+                                .w(px(48.0))
+                                .h(px(48.0))
+                                .bg(rgb(0xfab387))
+                                .rounded(px(6.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(px(8.0))
+                                .text_color(rgb(0x1e1e2e))
+                                .child("b8 r8"),
+                        )
+                        // Center element
+                        .child(
+                            div()
+                                .absolute()
+                                .inset(px(60.0))
+                                .bg(rgb(0xcba6f7))
+                                .rounded(px(8.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(px(10.0))
+                                .text_color(rgb(0x1e1e2e))
+                                .child("inset(60)"),
+                        ),
+                )
+                .child(section_label("z-index layering (absolute stacked divs)"))
+                .child(
+                    div()
+                        .w_full()
+                        .h(px(120.0))
+                        .relative()
+                        .child(
+                            div()
+                                .absolute()
+                                .top(px(0.0))
+                                .left(px(0.0))
+                                .w(px(120.0))
+                                .h(px(80.0))
+                                .bg(rgb(0xf38ba8))
+                                .rounded(px(8.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(px(10.0))
+                                .text_color(rgb(0x1e1e2e))
+                                .child("layer 1"),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .top(px(20.0))
+                                .left(px(40.0))
+                                .w(px(120.0))
+                                .h(px(80.0))
+                                .bg(rgb(0xa6e3a1))
+                                .rounded(px(8.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(px(10.0))
+                                .text_color(rgb(0x1e1e2e))
+                                .child("layer 2"),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .top(px(40.0))
+                                .left(px(80.0))
+                                .w(px(120.0))
+                                .h(px(80.0))
+                                .bg(rgb(0x89b4fa))
+                                .rounded(px(8.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(px(10.0))
+                                .text_color(rgb(0x1e1e2e))
+                                .child("layer 3"),
+                        ),
+                )
+                .into_any_element(),
+        };
+
+        // Full layout: header + scrollable tab content + tab bar
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .pl(safe.left)
+            .pr(safe.right)
+            .bg(rgb(0x1e1e2e))
+            .text_color(rgb(0xcdd6f4))
+            // Header (notch-aware)
+            .child(
+                div()
+                    .w_full()
+                    .pt(safe.top)
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_end()
+                    .bg(rgb(0x181825))
+                    .child(
+                        div()
+                            .h(px(52.0))
+                            .flex()
+                            .items_center()
+                            .text_size(px(17.0))
+                            .text_color(rgb(0xcdd6f4))
+                            .child(format!("Layout — {}", tabs[selected_tab])),
+                    ),
+            )
+            // Scrollable content area
+            .child(
+                div()
+                    .id("layout-scroll")
+                    .flex_1()
+                    .overflow_y_scroll()
+                    .child(content),
+            )
+            // Tab bar (home indicator-aware)
+            .child(tab_bar)
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gpui_ios_run_layout_showcase() {
+    run_ios_app("dev.glasshq.GPUIiOSLayoutShowcase", |_, _| {
+        IosLayoutShowcase { selected_tab: 0 }
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Demo dispatcher — called from ObjC main.m with demo name as C string
 // ---------------------------------------------------------------------------
 
@@ -1958,6 +2987,8 @@ const AVAILABLE_DEMOS: &[&str] = &[
     "rotation",
     "controls",
     "native_controls",
+    "safe_area",
+    "layout_showcase",
 ];
 
 #[unsafe(no_mangle)]
@@ -1983,6 +3014,8 @@ pub unsafe extern "C" fn gpui_ios_run_demo(name: *const std::ffi::c_char) {
         "rotation" => gpui_ios_run_rotation_demo(),
         "controls" => gpui_ios_run_controls_demo(),
         "native_controls" => gpui_ios_run_native_controls_demo(),
+        "safe_area" => gpui_ios_run_safe_area_demo(),
+        "layout_showcase" => gpui_ios_run_layout_showcase(),
         unknown => {
             // Init logging so the error is visible
             init_logging("dev.glasshq.GPUIiOS");
