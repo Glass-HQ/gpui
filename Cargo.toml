@@ -16,9 +16,11 @@ members = [
     "crates/gpui_windows",
     "crates/http_client",
     "crates/http_client_tls",
+    "crates/reqwest_client",
     "crates/media",
     "crates/sum_tree",
     "crates/util",
+    "crates/util_macros",
     "crates/scheduler",
     "crates/gpui_util",
     "crates/refineable",
@@ -71,10 +73,13 @@ gpui_wgpu = { path = "crates/gpui_wgpu" }
 gpui_windows = { path = "crates/gpui_windows", default-features = false }
 http_client = { path = "crates/http_client" }
 http_client_tls = { path = "crates/http_client_tls" }
+reqwest_client = { path = "crates/reqwest_client" }
 media = { path = "crates/media" }
 sum_tree = { path = "crates/sum_tree" }
 util = { path = "crates/util" }
+util_macros = { path = "crates/util_macros" }
 gpui_util = { path = "crates/gpui_util" }
+perf = { path = "tooling/perf" }
 scheduler = { path = "crates/scheduler" }
 refineable = { path = "crates/refineable" }
 derive_refineable = { path = "crates/refineable/derive_refineable" }
@@ -100,7 +105,7 @@ cocoa = "=0.26.0"
 cocoa-foundation = "=0.2.0"
 core-foundation = "=0.10.0"
 core-foundation-sys = "0.8.6"
-core-video = { version = "0.4.3", features = ["metal"] }
+core-video = { version = "0.5.2", features = ["metal"] }
 ctor = "0.4.0"
 derive_more = "0.99.17"
 dirs = "4.0"
@@ -122,8 +127,8 @@ itertools = "0.14.0"
 libc = "0.2"
 log = { version = "0.4.16", features = ["kv_unstable_serde", "serde"] }
 mach2 = "0.5"
-metal = "0.29"
-naga = { version = "28.0", features = ["wgsl-in"] }
+metal = "0.33"
+naga = { version = "29.0", features = ["wgsl-in"] }
 nix = "0.29"
 objc = "0.2"
 parking_lot = "0.12.1"
@@ -137,6 +142,7 @@ quote = "1.0.9"
 rand = "0.9"
 rayon = "1.8"
 regex = "1.5"
+reqwest = { git = "https://github.com/zed-industries/reqwest.git", rev = "c15662463bda39148ba154100dd44d3fba5873a4", default-features = false, features = ["charset", "http2", "macos-system-configuration", "multipart", "rustls-tls-native-roots", "socks", "stream"], package = "zed-reqwest", version = "0.12.15-zed" }
 rust-embed = { version = "8.4", features = ["include-exclude"] }
 rustc-hash = "2.1.0"
 rustls = { version = "0.23.26" }
@@ -169,7 +175,7 @@ uuid = { version = "1.1.2", features = ["v4", "v5", "v7", "serde"] }
 walkdir = "2.5"
 wasm-bindgen = "0.2"
 web-time = "1.1.0"
-wgpu = "28.0"
+wgpu = "29"
 which = "6.0.0"
 windows-core = "0.61"
 
