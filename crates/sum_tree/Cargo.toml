@@ -14,10 +14,19 @@ path = "src/sum_tree.rs"
 doctest = false
 
 [dependencies]
-arrayvec = "0.7.1"
+heapless.workspace = true
 rayon.workspace = true
 log.workspace = true
 tracing.workspace = true
+proptest = { workspace = true, optional = true }
 
 [dev-dependencies]
 rand.workspace = true
+proptest.workspace = true
+
+
+[package.metadata.cargo-machete]
+ignored = ["tracing"]
+
+[features]
+test-support = ["proptest"]
