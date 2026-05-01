@@ -145,14 +145,21 @@ print('')
   echo ""
 
   # Build for simulator
-  xcodebuild \
+  BUILD_LOG="$(mktemp /tmp/gpui-ios-sim-build.XXXXXX)"
+  if ! xcodebuild \
     -project "${PROJECT_NAME}.xcodeproj" \
     -scheme "$PROJECT_NAME" \
     -configuration "$CONFIGURATION" \
     -destination "id=$BOOTED_UDID" \
     -derivedDataPath "$SCRIPT_DIR/build/simulator" \
     DEVELOPMENT_TEAM="$TEAM_ID" \
-    build 2>&1 | tail -5
+    build >"$BUILD_LOG" 2>&1; then
+    tail -80 "$BUILD_LOG" >&2
+    rm -f "$BUILD_LOG"
+    exit 1
+  fi
+  tail -5 "$BUILD_LOG"
+  rm -f "$BUILD_LOG"
 
   PRODUCTS_DIR="$SCRIPT_DIR/build/simulator/Build/Products"
   APP_PATH="$(find "$PRODUCTS_DIR" -name "${PROJECT_NAME}.app" -type d 2>/dev/null | head -1)"
@@ -186,14 +193,16 @@ else
   fi
 
   # --- Device selection ---
-  TMPJSON="$(mktemp /tmp/gpui-devices.XXXXXX.json)"
+  TMPJSON="$(mktemp /tmp/gpui-devices.XXXXXX)"
   xcrun devicectl list devices --json-output "$TMPJSON" >/dev/null 2>&1 || true
 
+  COREDEVICE_ID=""
+  LEGACY_UDID=""
   read -r COREDEVICE_ID LEGACY_UDID < <(python3 -c "
 import json
 data = json.load(open('$TMPJSON'))
 devices = data.get('result', {}).get('devices', [])
-active, recent, offline = [], [], []
+active, recent = [], []
 for d in devices:
     hw = d.get('hardwareProperties', {})
     if hw.get('reality') == 'physical' and hw.get('platform') == 'iOS':
@@ -203,12 +212,10 @@ for d in devices:
             active.append(pair)
         elif tunnel == 'disconnected':
             recent.append(pair)
-        else:
-            offline.append(pair)
-pick = active or recent or offline
+pick = active or recent
 if pick:
     print(pick[0][0], pick[0][1])
-" 2>/dev/null || echo "")
+" 2>/dev/null || echo "") || true
   rm -f "$TMPJSON"
 
   if [[ -n "$DEVICE_OVERRIDE" ]]; then
@@ -217,8 +224,9 @@ if pick:
   fi
 
   if [[ -z "$COREDEVICE_ID" || -z "$LEGACY_UDID" ]]; then
-    echo "No physical iOS device found." >&2
+    echo "No available physical iOS device found." >&2
     echo "Run ./ios/devices to check connected devices." >&2
+    echo "If your phone is listed as unavailable, unlock it, trust this Mac, enable Developer Mode, and connect it by USB or usable Wi-Fi pairing." >&2
     exit 1
   fi
 
@@ -255,7 +263,8 @@ if pick:
   echo "Log listener on port $LOG_PORT (PID $LOG_LISTENER_PID)"
 
   # --- Build ---
-  xcodebuild \
+  BUILD_LOG="$(mktemp /tmp/gpui-ios-device-build.XXXXXX)"
+  if ! xcodebuild \
     -project "${PROJECT_NAME}.xcodeproj" \
     -scheme "$PROJECT_NAME" \
     -configuration "$CONFIGURATION" \
@@ -264,7 +273,13 @@ if pick:
     -allowProvisioningUpdates \
     DEVELOPMENT_TEAM="$TEAM_ID" \
     CODE_SIGN_STYLE=Automatic \
-    build 2>&1 | tail -5
+    build >"$BUILD_LOG" 2>&1; then
+    tail -80 "$BUILD_LOG" >&2
+    rm -f "$BUILD_LOG"
+    exit 1
+  fi
+  tail -5 "$BUILD_LOG"
+  rm -f "$BUILD_LOG"
 
   APP_PATH="$SCRIPT_DIR/build/device/Build/Products/${CONFIGURATION}-iphoneos/${PROJECT_NAME}.app"
   if [[ ! -d "$APP_PATH" ]]; then

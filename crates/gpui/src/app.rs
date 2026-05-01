@@ -139,6 +139,12 @@ impl Drop for AppRefMut<'_> {
 /// You won't interact with this type much outside of initial configuration and startup.
 pub struct Application(Rc<AppCell>);
 
+impl Clone for Application {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
 #[cfg(target_family = "wasm")]
 thread_local! {
     static WEB_APP_KEEPALIVE: RefCell<FxHashMap<usize, Rc<AppCell>>> = RefCell::new(FxHashMap::default());
@@ -147,7 +153,8 @@ thread_local! {
 #[cfg(target_family = "wasm")]
 fn retain_web_app(app: &Rc<AppCell>) {
     WEB_APP_KEEPALIVE.with(|apps| {
-        apps.borrow_mut().insert(Rc::as_ptr(app) as usize, app.clone());
+        apps.borrow_mut()
+            .insert(Rc::as_ptr(app) as usize, app.clone());
     });
 }
 

@@ -27,18 +27,18 @@ use gpui::hash;
 use gpui::{
     Action, AnyWindowHandle, BackgroundExecutor, Bounds, Capslock, ClipboardEntry, ClipboardItem,
     CursorStyle, DevicePixels, DispatchEventResult, DisplayId, Edges, ExternalPaths, FileDropEvent,
-    ForegroundExecutor, GLOBAL_THREAD_TIMINGS, GpuSpecs, HostedContentConfig, Image, ImageFormat,
-    KeyDownEvent, KeyUpEvent, KeybindingKeystroke, Keymap, Keystroke, Menu, MenuItem, Modifiers,
-    ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, OwnedMenu,
-    PathPromptOptions, PinchEvent, Pixels, Platform, PlatformAtlas, PlatformDispatcher,
-    PlatformDisplay, PlatformInput, PlatformInputHandler, PlatformKeyboardLayout,
-    PlatformKeyboardMapper, PlatformTextSystem, PlatformWindow, Point, Priority, PromptButton,
-    PromptLevel, RequestFrameOptions, RotationEvent, RunnableVariant, Scene, ScrollDelta,
-    ScrollWheelEvent, Size, THREAD_TIMINGS, Task, TaskTiming, ThermalState, ThreadTaskTimings,
-    TouchPhase, WindowAppearance, WindowBackgroundAppearance, WindowBounds, WindowControlArea,
-    WindowParams, point, px, size,
+    ForegroundExecutor, GLOBAL_THREAD_TIMINGS, GpuSpecs, HostedContentConfig, HostedSurfaceTarget,
+    Image, ImageFormat, KeyDownEvent, KeyUpEvent, KeybindingKeystroke, Keymap, Keystroke, Menu,
+    MenuItem, Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, OwnedMenu, PathPromptOptions, PinchEvent, Pixels, Platform, PlatformAtlas,
+    PlatformDispatcher, PlatformDisplay, PlatformInput, PlatformInputHandler,
+    PlatformKeyboardLayout, PlatformKeyboardMapper, PlatformTextSystem, PlatformWindow, Point,
+    Priority, PromptButton, PromptLevel, RequestFrameOptions, RotationEvent, RunnableVariant,
+    Scene, ScrollDelta, ScrollWheelEvent, Size, THREAD_TIMINGS, Task, TaskTiming, ThermalState,
+    ThreadTaskTimings, TouchPhase, WindowAppearance, WindowBackgroundAppearance, WindowBounds,
+    WindowControlArea, WindowParams, point, px, size,
 };
-use gpui_metal::{InstanceBufferPool, MetalRenderer, SharedRenderResources};
+use gpui_metal::{InstanceBufferPool, MetalRenderer};
 use ios_native_controls::IOS_NATIVE_CONTROLS;
 use metal::{CAMetalLayer, MetalLayer};
 use objc::{
@@ -4662,7 +4662,12 @@ impl PlatformWindow for IosWindow {
         }
     }
 
-    fn attach_hosted_surface(&self, host_view: *mut c_void, surface_view: *mut c_void) {
+    fn attach_hosted_surface(
+        &self,
+        host_view: *mut c_void,
+        surface_view: *mut c_void,
+        _target: HostedSurfaceTarget,
+    ) {
         unsafe {
             crate::native_controls::embed_surface_view_in_sidebar(
                 host_view as crate::native_controls::id,

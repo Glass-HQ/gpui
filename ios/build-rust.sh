@@ -5,6 +5,28 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+RUSTUP_BIN="${RUSTUP_BIN:-$(command -v rustup || true)}"
+if [[ -z "$RUSTUP_BIN" ]]; then
+  echo "rustup is required to build the iOS Rust library." >&2
+  echo "Install it with: brew install rustup-init && rustup-init" >&2
+  exit 1
+fi
+
+RUSTC_BIN="$("$RUSTUP_BIN" which rustc 2>/dev/null || true)"
+if [[ -z "$RUSTC_BIN" ]]; then
+  echo "No Rust toolchain is installed. Run: rustup toolchain install stable" >&2
+  exit 1
+fi
+export RUSTC="$RUSTC_BIN"
+
+CARGO_BIN="${CARGO_BIN:-$("$RUSTUP_BIN" which cargo 2>/dev/null || true)}"
+if [[ -z "$CARGO_BIN" ]]; then
+  echo "Cargo is missing from the active Rust toolchain. Run: rustup component add cargo" >&2
+  exit 1
+fi
+CARGO_CMD=("$CARGO_BIN")
 
 PROFILE_DIR="debug"
 CARGO_RELEASE_FLAG=""
@@ -39,9 +61,9 @@ fi
 
 build_rust_target() {
   local target="$1"
-  rustup target add "$target" >/dev/null 2>&1 || true
+  "$RUSTUP_BIN" target add "$target" >/dev/null 2>&1 || true
   cd "$WORKSPACE_ROOT"
-  cargo build -p gpui_ios_app --target "$target" $CARGO_RELEASE_FLAG
+  "${CARGO_CMD[@]}" build -p gpui_ios_app --target "$target" $CARGO_RELEASE_FLAG
 }
 
 rust_lib_path() {

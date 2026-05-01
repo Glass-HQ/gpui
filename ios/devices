@@ -7,7 +7,7 @@ if ! xcrun devicectl list devices --help >/dev/null 2>&1; then
   exit 1
 fi
 
-TMPJSON="$(mktemp /tmp/gpui-devices.XXXXXX.json)"
+TMPJSON="$(mktemp /tmp/gpui-devices.XXXXXX)"
 xcrun devicectl list devices --json-output "$TMPJSON" >/dev/null 2>&1 || true
 
 echo "Connected iOS devices:"
