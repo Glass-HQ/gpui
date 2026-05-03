@@ -36,7 +36,6 @@ extern void gpui_ios_run_demo(const char *name);
             @"native_controls",
             @"safe_area",
             @"layout_showcase",
-            @"keyboard_ime",
             @"file_picker",
             @"clipboard",
             @"file_drop",

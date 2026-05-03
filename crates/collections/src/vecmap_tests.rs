@@ -41,7 +41,8 @@ fn test_entry_or_insert_with_not_called_when_occupied() {
 #[test]
 fn test_entry_or_insert_with_key() {
     let mut map: VecMap<&str, String> = VecMap::new();
-    map.entry("hello").or_insert_with_key(|key| key.to_uppercase());
+    map.entry("hello")
+        .or_insert_with_key(|key| key.to_uppercase());
     assert_eq!(
         map.iter().collect::<Vec<_>>(),
         vec![(&"hello", &"HELLO".to_string())]
@@ -164,7 +165,8 @@ fn test_entry_ref_key_cloned_exactly_once_on_vacant_insert() {
 fn test_entry_ref_or_insert_with_key() {
     let mut map: VecMap<String, String> = VecMap::new();
     let key = "hello".to_string();
-    map.entry_ref(&key).or_insert_with_key(|candidate| candidate.to_uppercase());
+    map.entry_ref(&key)
+        .or_insert_with_key(|candidate| candidate.to_uppercase());
     assert_eq!(
         map.iter().collect::<Vec<_>>(),
         vec![(&"hello".to_string(), &"HELLO".to_string())]

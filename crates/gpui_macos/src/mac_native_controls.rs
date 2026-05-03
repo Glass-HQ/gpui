@@ -2,7 +2,7 @@ use std::{ffi::c_void, mem};
 
 use cocoa::{base::id, foundation::NSRect};
 use gpui::native_controls::*;
-use gpui::{point, px, size, Bounds, Pixels};
+use gpui::{Bounds, Pixels, point, px, size};
 use objc::{sel, sel_impl};
 
 use crate::native_controls;

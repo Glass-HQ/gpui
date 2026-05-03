@@ -76,7 +76,8 @@ impl WindowEnvironmentState {
         max_texture_dimension: u32,
     ) -> EnvironmentUpdate {
         let next_media_query = media_query_for_dpr(current_dpr);
-        let media_query = if self.current_media_query.as_deref() != Some(next_media_query.as_str()) {
+        let media_query = if self.current_media_query.as_deref() != Some(next_media_query.as_str())
+        {
             self.current_media_query = Some(next_media_query.clone());
             Some(next_media_query)
         } else {
@@ -122,7 +123,10 @@ impl WindowEnvironmentState {
             })
         });
 
-        EnvironmentUpdate { media_query, resize }
+        EnvironmentUpdate {
+            media_query,
+            resize,
+        }
     }
 }
 

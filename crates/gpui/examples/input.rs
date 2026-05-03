@@ -321,6 +321,21 @@ impl EntityInputHandler for TextInput {
         cx.notify();
     }
 
+    fn delete_backward(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.marked_range.is_some() || !self.selected_range.is_empty() {
+            self.replace_text_in_range(None, "", window, cx);
+            return;
+        }
+
+        let cursor = self.cursor_offset();
+        if cursor == 0 {
+            return;
+        }
+
+        let start = self.previous_boundary(cursor);
+        self.replace_text_in_range(Some(self.range_to_utf16(&(start..cursor))), "", window, cx);
+    }
+
     fn replace_and_mark_text_in_range(
         &mut self,
         range_utf16: Option<Range<usize>>,

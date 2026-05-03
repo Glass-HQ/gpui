@@ -1822,6 +1822,12 @@ impl PlatformInputHandler {
             .ok();
     }
 
+    pub fn delete_backward(&mut self) {
+        self.cx
+            .update(|window, cx| self.handler.delete_backward(window, cx))
+            .ok();
+    }
+
     pub fn replace_and_mark_text_in_range(
         &mut self,
         range_utf16: Option<Range<usize>>,
@@ -1845,6 +1851,12 @@ impl PlatformInputHandler {
     pub fn unmark_text(&mut self) {
         self.cx
             .update(|window, cx| self.handler.unmark_text(window, cx))
+            .ok();
+    }
+
+    pub fn set_selected_text_range(&mut self, selection: Option<UTF16Selection>) {
+        self.cx
+            .update(|window, cx| self.handler.set_selected_text_range(selection, window, cx))
             .ok();
     }
 
@@ -1894,11 +1906,23 @@ impl PlatformInputHandler {
             .update(|window, cx| self.handler.accepts_text_input(window, cx))
             .unwrap_or(true)
     }
+
+    pub fn text_input_config(&mut self) -> TextInputConfig {
+        self.cx
+            .update(|window, cx| self.handler.text_input_config(window, cx))
+            .unwrap_or_default()
+    }
+
+    pub fn submit_text_input(&mut self) {
+        self.cx
+            .update(|window, cx| self.handler.submit_text_input(window, cx))
+            .ok();
+    }
 }
 
 /// A struct representing a selection in a text buffer, in UTF16 characters.
 /// This is different from a range because the head may be before the tail.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UTF16Selection {
     /// The range of text in the document this selection corresponds to
     /// in UTF16 characters.
@@ -1906,6 +1930,190 @@ pub struct UTF16Selection {
     /// Whether the head of this selection is at the start (true), or end (false)
     /// of the range
     pub reversed: bool,
+}
+
+/// Configuration for a platform-backed text input control.
+#[allow(missing_docs)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextInputConfig {
+    /// Whether the control should use multiline editing behavior.
+    pub multiline: bool,
+    /// Whether the control should obscure the entered text.
+    pub secure_entry: bool,
+    /// The requested software keyboard layout.
+    pub keyboard_type: TextInputKeyboardType,
+    /// The requested return key label.
+    pub return_key_type: TextInputReturnKeyType,
+    /// The semantic content type for autofill and system integrations.
+    pub text_content_type: Option<TextInputContentType>,
+    /// Autocorrection policy.
+    pub autocorrection: TextInputAutocorrection,
+    /// Spell checking policy.
+    pub spell_checking: TextInputSpellChecking,
+    /// Automatic capitalization policy.
+    pub autocapitalization: TextInputAutocapitalization,
+    /// Smart insert/delete policy where supported.
+    pub smart_insert_delete: Option<bool>,
+    /// Keyboard appearance preference.
+    pub keyboard_appearance: TextInputKeyboardAppearance,
+    /// Return key behavior.
+    pub submit_behavior: TextInputSubmitBehavior,
+    /// Whether the return key should automatically disable when empty.
+    pub enables_return_key_automatically: bool,
+    /// Whether the system software keyboard should be shown.
+    pub soft_keyboard: TextInputSoftKeyboardPolicy,
+}
+
+impl Default for TextInputConfig {
+    fn default() -> Self {
+        Self {
+            multiline: false,
+            secure_entry: false,
+            keyboard_type: TextInputKeyboardType::Default,
+            return_key_type: TextInputReturnKeyType::Default,
+            text_content_type: None,
+            autocorrection: TextInputAutocorrection::Default,
+            spell_checking: TextInputSpellChecking::Default,
+            autocapitalization: TextInputAutocapitalization::Sentences,
+            smart_insert_delete: None,
+            keyboard_appearance: TextInputKeyboardAppearance::Default,
+            submit_behavior: TextInputSubmitBehavior::Submit,
+            enables_return_key_automatically: false,
+            soft_keyboard: TextInputSoftKeyboardPolicy::Automatic,
+        }
+    }
+}
+
+/// Requested software keyboard layout.
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextInputKeyboardType {
+    #[default]
+    Default,
+    AsciiCapable,
+    NumbersAndPunctuation,
+    Url,
+    NumberPad,
+    PhonePad,
+    NamePhonePad,
+    EmailAddress,
+    DecimalPad,
+    Twitter,
+    WebSearch,
+    AsciiCapableNumberPad,
+}
+
+/// Requested return key label.
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextInputReturnKeyType {
+    #[default]
+    Default,
+    Go,
+    Google,
+    Join,
+    Next,
+    Route,
+    Search,
+    Send,
+    Yahoo,
+    Done,
+    EmergencyCall,
+    Continue,
+}
+
+/// Semantic content type for autofill and system services.
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextInputContentType {
+    Name,
+    NamePrefix,
+    GivenName,
+    MiddleName,
+    FamilyName,
+    NameSuffix,
+    Nickname,
+    JobTitle,
+    OrganizationName,
+    Location,
+    FullStreetAddress,
+    StreetAddressLine1,
+    StreetAddressLine2,
+    AddressCity,
+    AddressState,
+    PostalCode,
+    CountryName,
+    TelephoneNumber,
+    EmailAddress,
+    Url,
+    CreditCardNumber,
+    Username,
+    Password,
+    NewPassword,
+    OneTimeCode,
+}
+
+/// Autocorrection policy.
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextInputAutocorrection {
+    #[default]
+    Default,
+    No,
+    Yes,
+}
+
+/// Spell checking policy.
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextInputSpellChecking {
+    #[default]
+    Default,
+    No,
+    Yes,
+}
+
+/// Automatic capitalization policy.
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextInputAutocapitalization {
+    None,
+    Words,
+    #[default]
+    Sentences,
+    AllCharacters,
+}
+
+/// Preferred appearance of the system keyboard.
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextInputKeyboardAppearance {
+    #[default]
+    Default,
+    Dark,
+    Light,
+}
+
+/// Return key behavior for platform-backed inputs.
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextInputSubmitBehavior {
+    /// Insert a newline into the document.
+    InsertNewline,
+    /// Notify the input handler that the field was submitted.
+    #[default]
+    Submit,
+    /// Notify the input handler, then blur the control.
+    SubmitAndBlur,
+}
+
+/// Controls whether the platform should show the software keyboard.
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextInputSoftKeyboardPolicy {
+    #[default]
+    Automatic,
+    Hidden,
 }
 
 /// Zed's interface for handling text input from the platform's IME system
@@ -1954,6 +2162,15 @@ pub trait InputHandler: 'static {
         cx: &mut App,
     );
 
+    /// Delete backward at the current insertion point.
+    ///
+    /// Platforms may call this even when the native backed control's text is empty,
+    /// so handlers that need editor-accurate deletion should override it instead of
+    /// relying on `replace_text_in_range(None, "")`.
+    fn delete_backward(&mut self, window: &mut Window, cx: &mut App) {
+        self.replace_text_in_range(None, "", window, cx);
+    }
+
     /// Replace the text in the given document range with the given text,
     /// and mark the given text as part of an IME 'composing' state
     /// Corresponds to [setMarkedText(_:selectedRange:replacementRange:)](https://developer.apple.com/documentation/appkit/nstextinputclient/1438246-setmarkedtext)
@@ -1972,6 +2189,15 @@ pub trait InputHandler: 'static {
     /// Remove the IME 'composing' state from the document
     /// Corresponds to [unmarkText()](https://developer.apple.com/documentation/appkit/nstextinputclient/1438239-unmarktext)
     fn unmark_text(&mut self, window: &mut Window, cx: &mut App);
+
+    /// Update the document selection from the platform.
+    fn set_selected_text_range(
+        &mut self,
+        _selection: Option<UTF16Selection>,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) {
+    }
 
     /// Get the bounds of the given document range in screen coordinates
     /// Corresponds to [firstRect(forCharacterRange:actualRange:)](https://developer.apple.com/documentation/appkit/nstextinputclient/1438240-firstrect)
@@ -2012,6 +2238,14 @@ pub trait InputHandler: 'static {
     fn prefers_ime_for_printable_keys(&mut self, _window: &mut Window, _cx: &mut App) -> bool {
         false
     }
+
+    /// Returns the desired configuration for a platform-backed text input control.
+    fn text_input_config(&mut self, _window: &mut Window, _cx: &mut App) -> TextInputConfig {
+        TextInputConfig::default()
+    }
+
+    /// Notifies the handler that the user explicitly submitted the text input.
+    fn submit_text_input(&mut self, _window: &mut Window, _cx: &mut App) {}
 }
 
 /// The variables that can be configured when creating a new window

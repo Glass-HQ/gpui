@@ -1,4 +1,6 @@
-use crate::{App, Bounds, Context, Entity, InputHandler, Pixels, UTF16Selection, Window};
+use crate::{
+    App, Bounds, Context, Entity, InputHandler, Pixels, TextInputConfig, UTF16Selection, Window,
+};
 use std::ops::Range;
 
 /// Implement this trait to allow views to handle textual input when implementing an editor, field, etc.
@@ -35,6 +37,15 @@ pub trait EntityInputHandler: 'static + Sized {
     /// See [`InputHandler::unmark_text`] for details
     fn unmark_text(&mut self, window: &mut Window, cx: &mut Context<Self>);
 
+    /// See [`InputHandler::set_selected_text_range`] for details
+    fn set_selected_text_range(
+        &mut self,
+        _selection: Option<UTF16Selection>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
+    }
+
     /// See [`InputHandler::replace_text_in_range`] for details
     fn replace_text_in_range(
         &mut self,
@@ -43,6 +54,11 @@ pub trait EntityInputHandler: 'static + Sized {
         window: &mut Window,
         cx: &mut Context<Self>,
     );
+
+    /// See [`InputHandler::delete_backward`] for details.
+    fn delete_backward(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.replace_text_in_range(None, "", window, cx);
+    }
 
     /// See [`InputHandler::replace_and_mark_text_in_range`] for details
     fn replace_and_mark_text_in_range(
@@ -75,6 +91,14 @@ pub trait EntityInputHandler: 'static + Sized {
     fn accepts_text_input(&self, _window: &mut Window, _cx: &mut Context<Self>) -> bool {
         true
     }
+
+    /// See [`InputHandler::text_input_config`] for details
+    fn text_input_config(&self, _window: &mut Window, _cx: &mut Context<Self>) -> TextInputConfig {
+        TextInputConfig::default()
+    }
+
+    /// See [`InputHandler::submit_text_input`] for details
+    fn submit_text_input(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
 }
 
 /// The canonical implementation of [`crate::PlatformInputHandler`]. Call [`Window::handle_input`]
@@ -137,6 +161,11 @@ impl<V: EntityInputHandler> InputHandler for ElementInputHandler<V> {
         });
     }
 
+    fn delete_backward(&mut self, window: &mut Window, cx: &mut App) {
+        self.view
+            .update(cx, |view, cx| view.delete_backward(window, cx));
+    }
+
     fn replace_and_mark_text_in_range(
         &mut self,
         range_utf16: Option<Range<usize>>,
@@ -159,6 +188,17 @@ impl<V: EntityInputHandler> InputHandler for ElementInputHandler<V> {
     fn unmark_text(&mut self, window: &mut Window, cx: &mut App) {
         self.view
             .update(cx, |view, cx| view.unmark_text(window, cx));
+    }
+
+    fn set_selected_text_range(
+        &mut self,
+        selection: Option<UTF16Selection>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.view.update(cx, |view, cx| {
+            view.set_selected_text_range(selection, window, cx)
+        });
     }
 
     fn bounds_for_range(
@@ -191,5 +231,15 @@ impl<V: EntityInputHandler> InputHandler for ElementInputHandler<V> {
     fn prefers_ime_for_printable_keys(&mut self, window: &mut Window, cx: &mut App) -> bool {
         self.view
             .update(cx, |view, cx| view.accepts_text_input(window, cx))
+    }
+
+    fn text_input_config(&mut self, window: &mut Window, cx: &mut App) -> TextInputConfig {
+        self.view
+            .update(cx, |view, cx| view.text_input_config(window, cx))
+    }
+
+    fn submit_text_input(&mut self, window: &mut Window, cx: &mut App) {
+        self.view
+            .update(cx, |view, cx| view.submit_text_input(window, cx));
     }
 }

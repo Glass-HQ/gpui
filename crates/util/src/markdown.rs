@@ -27,7 +27,10 @@ fn has_uri_scheme(url: &str) -> bool {
         if character == ':' {
             return true;
         }
-        if !(character.is_ascii_alphanumeric() || character == '+' || character == '-' || character == '.')
+        if !(character.is_ascii_alphanumeric()
+            || character == '+'
+            || character == '-'
+            || character == '.')
         {
             return false;
         }

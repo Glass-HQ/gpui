@@ -949,7 +949,6 @@ impl PlatformWindow for WindowsWindow {
 
         self.0.update_ime_position(self.0.hwnd, caret_position);
     }
-
 }
 
 #[implement(IDropTarget)]

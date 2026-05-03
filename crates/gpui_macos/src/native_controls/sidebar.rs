@@ -167,11 +167,7 @@ unsafe fn host_data_ptr(host_view: id) -> *mut SidebarHostData {
 unsafe fn host_data_mut(host_view: id) -> Option<&'static mut SidebarHostData> {
     unsafe {
         let ptr = host_data_ptr(host_view);
-        if ptr.is_null() {
-            None
-        } else {
-            Some(&mut *ptr)
-        }
+        if ptr.is_null() { None } else { Some(&mut *ptr) }
     }
 }
 

@@ -1,14 +1,19 @@
 #![cfg(target_os = "ios")]
 use gpui::{
-    App, ClipboardEntry, ClipboardItem, Context, ExternalPaths, FocusHandle, Focusable, Image,
-    ImageFormat, KeyDownEvent, MouseButton, NativeImageSymbolWeight, PathPromptOptions, PinchEvent,
-    RotationEvent, Window, WindowAppearance, WindowOptions, div, native_button, native_checkbox,
+    App, Bounds, ClipboardEntry, ClipboardItem, Context, ElementInputHandler, EntityInputHandler,
+    ExternalPaths, FocusHandle, Focusable, Image, ImageFormat, MouseButton,
+    NativeImageSymbolWeight, PathPromptOptions, PinchEvent, Pixels, Point, RotationEvent,
+    TextInputAutocapitalization, TextInputAutocorrection, TextInputConfig, TextInputContentType,
+    TextInputKeyboardAppearance, TextInputKeyboardType, TextInputReturnKeyType,
+    TextInputSoftKeyboardPolicy, TextInputSpellChecking, TextInputSubmitBehavior, UTF16Selection,
+    Window, WindowAppearance, WindowOptions, canvas, div, native_button, native_checkbox,
     native_image_view, native_progress_bar, native_slider, native_stepper, native_switch,
     native_text_field, native_toggle_group, prelude::*, px, rgb, rgba,
 };
 use log::LevelFilter;
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
+use std::ops::Range;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -806,115 +811,7 @@ pub extern "C" fn gpui_ios_run_scroll_demo() {
 }
 
 // ---------------------------------------------------------------------------
-// 7. Text Input Demo — tap to focus, type text via software keyboard
-// ---------------------------------------------------------------------------
-
-struct IosTextInputDemo {
-    focus_handle: FocusHandle,
-    text: String,
-}
-
-impl Focusable for IosTextInputDemo {
-    fn focus_handle(&self, _cx: &App) -> FocusHandle {
-        self.focus_handle.clone()
-    }
-}
-
-impl Render for IosTextInputDemo {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let safe = window.safe_area_insets();
-        let text = self.text.clone();
-        let focused = self.focus_handle.is_focused(window);
-
-        let border_color = if focused { 0x89b4fau32 } else { 0x585b70 };
-        let display_text = if text.is_empty() && !focused {
-            "Tap here to type...".to_string()
-        } else if text.is_empty() {
-            "|".to_string()
-        } else {
-            format!("{}|", text)
-        };
-
-        div()
-            .id("text-input-root")
-            .track_focus(&self.focus_handle)
-            .size_full()
-            .pt(safe.top)
-            .pb(safe.bottom)
-            .pl(safe.left)
-            .pr(safe.right)
-            .flex()
-            .flex_col()
-            .items_center()
-            .justify_center()
-            .gap(px(20.0))
-            .bg(rgb(0x1e1e2e))
-            .text_color(rgb(0xcdd6f4))
-            .on_key_down(cx.listener(|this: &mut Self, event: &KeyDownEvent, _, cx| {
-                let key = &event.keystroke.key;
-                if key == "backspace" {
-                    this.text.pop();
-                    cx.notify();
-                } else if key == "enter" {
-                    log::info!("submitted: {:?}", this.text);
-                } else if let Some(ch) = &event.keystroke.key_char {
-                    this.text.push_str(ch);
-                    cx.notify();
-                }
-            }))
-            .child(div().text_size(px(24.0)).child("Text Input Demo"))
-            .child(
-                div()
-                    .id("text-field")
-                    .w(px(300.0))
-                    .h(px(44.0))
-                    .px(px(12.0))
-                    .bg(rgb(0x313244))
-                    .rounded(px(8.0))
-                    .border_1()
-                    .border_color(rgb(border_color))
-                    .flex()
-                    .items_center()
-                    .child(
-                        div()
-                            .text_size(px(16.0))
-                            .text_color(if self.text.is_empty() && !focused {
-                                rgb(0x6c7086)
-                            } else {
-                                rgb(0xcdd6f4)
-                            })
-                            .child(display_text),
-                    )
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|_this, _, window, cx| {
-                            cx.focus_self(window);
-                            cx.notify();
-                        }),
-                    ),
-            )
-            .child(
-                div()
-                    .text_size(px(14.0))
-                    .text_color(rgb(0x6c7086))
-                    .child("Tap the input field, then type"),
-            )
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_text_input_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSTextInputDemo", |_window, cx| {
-        let focus_handle = cx.focus_handle();
-        IosTextInputDemo {
-            focus_handle,
-            text: String::new(),
-        }
-    });
-}
-
-// ---------------------------------------------------------------------------
-// 8. Vertical Scroll Demo — single-finger scrollable list with momentum
+// 7. Vertical Scroll Demo — single-finger scrollable list with momentum
 // ---------------------------------------------------------------------------
 
 struct IosVerticalScrollDemo;
@@ -1239,6 +1136,14 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (u8, u8, u8) {
     )
 }
 
+fn previous_utf8_boundary(text: &str, offset: usize) -> usize {
+    text[..offset]
+        .char_indices()
+        .last()
+        .map(|(index, _)| index)
+        .unwrap_or(0)
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn gpui_ios_run_rotation_demo() {
     run_ios_app("dev.glasshq.GPUIiOSRotationDemo", |_, _| IosRotationDemo {
@@ -1258,12 +1163,206 @@ struct IosControlsDemo {
     slider_value: f32,
     stepper_value: i32,
     text_field_value: String,
+    text_field_selection: Range<usize>,
+    text_field_marked_range: Option<Range<usize>>,
     selected_segment: usize,
 }
 
 impl Focusable for IosControlsDemo {
     fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus_handle.clone()
+    }
+}
+
+impl IosControlsDemo {
+    fn utf16_offset_to_utf8(&self, utf16_offset: usize) -> usize {
+        let mut utf8_offset = 0;
+        let mut utf16_count = 0;
+
+        for ch in self.text_field_value.chars() {
+            if utf16_count >= utf16_offset {
+                break;
+            }
+            utf16_count += ch.len_utf16();
+            utf8_offset += ch.len_utf8();
+        }
+
+        utf8_offset
+    }
+
+    fn utf8_offset_to_utf16(&self, utf8_offset: usize) -> usize {
+        let mut utf8_count = 0;
+        let mut utf16_offset = 0;
+
+        for ch in self.text_field_value.chars() {
+            if utf8_count >= utf8_offset {
+                break;
+            }
+            utf8_count += ch.len_utf8();
+            utf16_offset += ch.len_utf16();
+        }
+
+        utf16_offset
+    }
+
+    fn range_to_utf16(&self, range: &Range<usize>) -> Range<usize> {
+        self.utf8_offset_to_utf16(range.start)..self.utf8_offset_to_utf16(range.end)
+    }
+
+    fn range_from_utf16(&self, range_utf16: &Range<usize>) -> Range<usize> {
+        self.utf16_offset_to_utf8(range_utf16.start)..self.utf16_offset_to_utf8(range_utf16.end)
+    }
+}
+
+impl EntityInputHandler for IosControlsDemo {
+    fn text_for_range(
+        &mut self,
+        range_utf16: Range<usize>,
+        adjusted_range: &mut Option<Range<usize>>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<String> {
+        let range = self.range_from_utf16(&range_utf16);
+        adjusted_range.replace(self.range_to_utf16(&range));
+        Some(self.text_field_value[range].to_string())
+    }
+
+    fn selected_text_range(
+        &mut self,
+        _ignore_disabled_input: bool,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<UTF16Selection> {
+        Some(UTF16Selection {
+            range: self.range_to_utf16(&self.text_field_selection),
+            reversed: false,
+        })
+    }
+
+    fn marked_text_range(
+        &self,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Range<usize>> {
+        self.text_field_marked_range
+            .as_ref()
+            .map(|range| self.range_to_utf16(range))
+    }
+
+    fn unmark_text(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        self.text_field_marked_range = None;
+        cx.notify();
+    }
+
+    fn replace_text_in_range(
+        &mut self,
+        range_utf16: Option<Range<usize>>,
+        text: &str,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let replacement_range = range_utf16
+            .as_ref()
+            .map(|range| self.range_from_utf16(range))
+            .or(self.text_field_marked_range.clone())
+            .unwrap_or_else(|| self.text_field_selection.clone());
+
+        self.text_field_value = format!(
+            "{}{}{}",
+            &self.text_field_value[..replacement_range.start],
+            text,
+            &self.text_field_value[replacement_range.end..]
+        );
+        let cursor = replacement_range.start + text.len();
+        self.text_field_selection = cursor..cursor;
+        self.text_field_marked_range = None;
+        cx.notify();
+    }
+
+    fn delete_backward(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.text_field_marked_range.is_some() || !self.text_field_selection.is_empty() {
+            self.replace_text_in_range(None, "", window, cx);
+            return;
+        }
+
+        let cursor = self.text_field_selection.end;
+        if cursor == 0 {
+            return;
+        }
+
+        let start = previous_utf8_boundary(&self.text_field_value, cursor);
+        self.replace_text_in_range(Some(start..cursor), "", window, cx);
+    }
+
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        range_utf16: Option<Range<usize>>,
+        new_text: &str,
+        new_selected_range: Option<Range<usize>>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let replacement_range = range_utf16
+            .as_ref()
+            .map(|range| self.range_from_utf16(range))
+            .or(self.text_field_marked_range.clone())
+            .unwrap_or_else(|| self.text_field_selection.clone());
+
+        self.text_field_value = format!(
+            "{}{}{}",
+            &self.text_field_value[..replacement_range.start],
+            new_text,
+            &self.text_field_value[replacement_range.end..]
+        );
+
+        if new_text.is_empty() {
+            self.text_field_marked_range = None;
+        } else {
+            self.text_field_marked_range =
+                Some(replacement_range.start..replacement_range.start + new_text.len());
+        }
+
+        self.text_field_selection = new_selected_range
+            .as_ref()
+            .map(|range| self.range_from_utf16(range))
+            .map(|range| replacement_range.start + range.start..replacement_range.start + range.end)
+            .unwrap_or_else(|| {
+                let cursor = replacement_range.start + new_text.len();
+                cursor..cursor
+            });
+
+        cx.notify();
+    }
+
+    fn bounds_for_range(
+        &mut self,
+        _range_utf16: Range<usize>,
+        element_bounds: Bounds<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Bounds<Pixels>> {
+        Some(element_bounds)
+    }
+
+    fn character_index_for_point(
+        &mut self,
+        _point: Point<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<usize> {
+        Some(self.text_field_value.len())
+    }
+
+    fn set_selected_text_range(
+        &mut self,
+        selection: Option<UTF16Selection>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(selection) = selection {
+            self.text_field_selection = self.range_from_utf16(&selection.range);
+            cx.notify();
+        }
     }
 }
 
@@ -1333,11 +1432,10 @@ impl Render for IosControlsDemo {
         let text_border_color = if focused { 0x89b4fa } else { 0x585b70 };
         let text_display = if text_field_value.is_empty() && !focused {
             "Tap here to type...".to_string()
-        } else if text_field_value.is_empty() {
-            "|".to_string()
         } else {
-            format!("{}|", text_field_value)
+            text_field_value.clone()
         };
+        let text_input_entity = cx.entity();
 
         let mut toggle_group = div()
             .flex()
@@ -1536,6 +1634,7 @@ impl Render for IosControlsDemo {
                     div()
                         .w_full()
                         .h(px(40.0))
+                        .relative()
                         .px(px(10.0))
                         .bg(rgb(0x313244))
                         .rounded(px(8.0))
@@ -1552,6 +1651,23 @@ impl Render for IosControlsDemo {
                                     rgb(0xcdd6f4)
                                 })
                                 .child(text_display),
+                        )
+                        .child(
+                            canvas(
+                                |_bounds, _window, _cx| (),
+                                move |bounds, (), window, cx| {
+                                    window.handle_input(
+                                        &text_input_entity.read(cx).focus_handle.clone(),
+                                        ElementInputHandler::new(bounds, text_input_entity.clone()),
+                                        cx,
+                                    );
+                                },
+                            )
+                            .absolute()
+                            .top_0()
+                            .left_0()
+                            .right_0()
+                            .bottom_0(),
                         )
                         .on_mouse_down(
                             MouseButton::Left,
@@ -1666,24 +1782,6 @@ impl Render for IosControlsDemo {
 
         div()
             .track_focus(&self.focus_handle)
-            .on_key_down(
-                cx.listener(|this: &mut Self, event: &KeyDownEvent, window, cx| {
-                    if !this.focus_handle.is_focused(window) {
-                        return;
-                    }
-
-                    let key = &event.keystroke.key;
-                    if key == "backspace" {
-                        this.text_field_value.pop();
-                        cx.notify();
-                    } else if key == "enter" {
-                        log::info!("controls text submit: {:?}", this.text_field_value);
-                    } else if let Some(ch) = &event.keystroke.key_char {
-                        this.text_field_value.push_str(ch);
-                        cx.notify();
-                    }
-                }),
-            )
             .size_full()
             .flex()
             .flex_col()
@@ -1729,7 +1827,674 @@ pub extern "C" fn gpui_ios_run_controls_demo() {
             slider_value: 0.5,
             stepper_value: 0,
             text_field_value: String::new(),
+            text_field_selection: 0..0,
+            text_field_marked_range: None,
             selected_segment: 0,
+        }
+    });
+}
+
+#[derive(Clone, Copy)]
+enum DemoKeyboardMode {
+    Default,
+    Email,
+    Url,
+    NumberPad,
+    DecimalPad,
+    Phone,
+    OneTimeCode,
+    Password,
+}
+
+#[derive(Clone, Copy)]
+enum DemoReturnMode {
+    Submit,
+    SubmitAndBlur,
+    InsertNewline,
+    Search,
+    Send,
+}
+
+#[derive(Clone, Copy)]
+enum DemoAutocorrectMode {
+    Default,
+    On,
+    Off,
+}
+
+#[derive(Clone, Copy)]
+enum DemoCapitalizationMode {
+    None,
+    Words,
+    Sentences,
+    AllCharacters,
+}
+
+struct IosTextInputDemo {
+    focus_handle: FocusHandle,
+    value: String,
+    selection: Range<usize>,
+    marked_range: Option<Range<usize>>,
+    submitted: Vec<String>,
+    multiline: bool,
+    secure: bool,
+    keyboard_mode: DemoKeyboardMode,
+    return_mode: DemoReturnMode,
+    autocorrect_mode: DemoAutocorrectMode,
+    capitalization_mode: DemoCapitalizationMode,
+    spell_check: TextInputSpellChecking,
+    keyboard_appearance: TextInputKeyboardAppearance,
+    soft_keyboard: TextInputSoftKeyboardPolicy,
+}
+
+impl Focusable for IosTextInputDemo {
+    fn focus_handle(&self, _cx: &App) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+}
+
+impl IosTextInputDemo {
+    fn utf16_offset_to_utf8(&self, utf16_offset: usize) -> usize {
+        let mut utf8_offset = 0;
+        let mut utf16_count = 0;
+
+        for ch in self.value.chars() {
+            if utf16_count >= utf16_offset {
+                break;
+            }
+            utf16_count += ch.len_utf16();
+            utf8_offset += ch.len_utf8();
+        }
+
+        utf8_offset
+    }
+
+    fn utf8_offset_to_utf16(&self, utf8_offset: usize) -> usize {
+        let mut utf8_count = 0;
+        let mut utf16_offset = 0;
+
+        for ch in self.value.chars() {
+            if utf8_count >= utf8_offset {
+                break;
+            }
+            utf8_count += ch.len_utf8();
+            utf16_offset += ch.len_utf16();
+        }
+
+        utf16_offset
+    }
+
+    fn range_to_utf16(&self, range: &Range<usize>) -> Range<usize> {
+        self.utf8_offset_to_utf16(range.start)..self.utf8_offset_to_utf16(range.end)
+    }
+
+    fn range_from_utf16(&self, range_utf16: &Range<usize>) -> Range<usize> {
+        self.utf16_offset_to_utf8(range_utf16.start)..self.utf16_offset_to_utf8(range_utf16.end)
+    }
+
+    fn keyboard_type(&self) -> TextInputKeyboardType {
+        match self.keyboard_mode {
+            DemoKeyboardMode::Default => TextInputKeyboardType::Default,
+            DemoKeyboardMode::Email => TextInputKeyboardType::EmailAddress,
+            DemoKeyboardMode::Url => TextInputKeyboardType::Url,
+            DemoKeyboardMode::NumberPad => TextInputKeyboardType::NumberPad,
+            DemoKeyboardMode::DecimalPad => TextInputKeyboardType::DecimalPad,
+            DemoKeyboardMode::Phone => TextInputKeyboardType::PhonePad,
+            DemoKeyboardMode::OneTimeCode => TextInputKeyboardType::NumberPad,
+            DemoKeyboardMode::Password => TextInputKeyboardType::Default,
+        }
+    }
+
+    fn content_type(&self) -> Option<TextInputContentType> {
+        match self.keyboard_mode {
+            DemoKeyboardMode::Email => Some(TextInputContentType::EmailAddress),
+            DemoKeyboardMode::Url => Some(TextInputContentType::Url),
+            DemoKeyboardMode::Phone => Some(TextInputContentType::TelephoneNumber),
+            DemoKeyboardMode::OneTimeCode => Some(TextInputContentType::OneTimeCode),
+            DemoKeyboardMode::Password => Some(TextInputContentType::Password),
+            _ => None,
+        }
+    }
+}
+
+impl EntityInputHandler for IosTextInputDemo {
+    fn text_for_range(
+        &mut self,
+        range_utf16: Range<usize>,
+        adjusted_range: &mut Option<Range<usize>>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<String> {
+        let range = self.range_from_utf16(&range_utf16);
+        adjusted_range.replace(self.range_to_utf16(&range));
+        Some(self.value[range].to_string())
+    }
+
+    fn selected_text_range(
+        &mut self,
+        _ignore_disabled_input: bool,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<UTF16Selection> {
+        Some(UTF16Selection {
+            range: self.range_to_utf16(&self.selection),
+            reversed: false,
+        })
+    }
+
+    fn marked_text_range(
+        &self,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Range<usize>> {
+        self.marked_range
+            .as_ref()
+            .map(|range| self.range_to_utf16(range))
+    }
+
+    fn unmark_text(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        self.marked_range = None;
+        cx.notify();
+    }
+
+    fn replace_text_in_range(
+        &mut self,
+        range_utf16: Option<Range<usize>>,
+        text: &str,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let replacement_range = range_utf16
+            .as_ref()
+            .map(|range| self.range_from_utf16(range))
+            .or(self.marked_range.clone())
+            .unwrap_or_else(|| self.selection.clone());
+
+        self.value = format!(
+            "{}{}{}",
+            &self.value[..replacement_range.start],
+            text,
+            &self.value[replacement_range.end..]
+        );
+        let cursor = replacement_range.start + text.len();
+        self.selection = cursor..cursor;
+        self.marked_range = None;
+        cx.notify();
+    }
+
+    fn delete_backward(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.marked_range.is_some() || !self.selection.is_empty() {
+            self.replace_text_in_range(None, "", window, cx);
+            return;
+        }
+
+        let cursor = self.selection.end;
+        if cursor == 0 {
+            return;
+        }
+
+        let start = previous_utf8_boundary(&self.value, cursor);
+        self.replace_text_in_range(Some(start..cursor), "", window, cx);
+    }
+
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        range_utf16: Option<Range<usize>>,
+        new_text: &str,
+        new_selected_range: Option<Range<usize>>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let replacement_range = range_utf16
+            .as_ref()
+            .map(|range| self.range_from_utf16(range))
+            .or(self.marked_range.clone())
+            .unwrap_or_else(|| self.selection.clone());
+
+        self.value = format!(
+            "{}{}{}",
+            &self.value[..replacement_range.start],
+            new_text,
+            &self.value[replacement_range.end..]
+        );
+
+        self.marked_range = if new_text.is_empty() {
+            None
+        } else {
+            Some(replacement_range.start..replacement_range.start + new_text.len())
+        };
+
+        self.selection = new_selected_range
+            .as_ref()
+            .map(|range| self.range_from_utf16(range))
+            .map(|range| replacement_range.start + range.start..replacement_range.start + range.end)
+            .unwrap_or_else(|| {
+                let cursor = replacement_range.start + new_text.len();
+                cursor..cursor
+            });
+        cx.notify();
+    }
+
+    fn set_selected_text_range(
+        &mut self,
+        selection: Option<UTF16Selection>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(selection) = selection {
+            self.selection = self.range_from_utf16(&selection.range);
+            cx.notify();
+        }
+    }
+
+    fn bounds_for_range(
+        &mut self,
+        _range_utf16: Range<usize>,
+        element_bounds: Bounds<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Bounds<Pixels>> {
+        Some(element_bounds)
+    }
+
+    fn character_index_for_point(
+        &mut self,
+        _point: Point<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<usize> {
+        Some(self.value.len())
+    }
+
+    fn text_input_config(&self, _window: &mut Window, _cx: &mut Context<Self>) -> TextInputConfig {
+        let return_key_type = match self.return_mode {
+            DemoReturnMode::Submit | DemoReturnMode::SubmitAndBlur => TextInputReturnKeyType::Done,
+            DemoReturnMode::InsertNewline => TextInputReturnKeyType::Default,
+            DemoReturnMode::Search => TextInputReturnKeyType::Search,
+            DemoReturnMode::Send => TextInputReturnKeyType::Send,
+        };
+        let submit_behavior = match self.return_mode {
+            DemoReturnMode::Submit | DemoReturnMode::Search | DemoReturnMode::Send => {
+                TextInputSubmitBehavior::Submit
+            }
+            DemoReturnMode::SubmitAndBlur => TextInputSubmitBehavior::SubmitAndBlur,
+            DemoReturnMode::InsertNewline => TextInputSubmitBehavior::InsertNewline,
+        };
+        let autocorrection = match self.autocorrect_mode {
+            DemoAutocorrectMode::Default => TextInputAutocorrection::Default,
+            DemoAutocorrectMode::On => TextInputAutocorrection::Yes,
+            DemoAutocorrectMode::Off => TextInputAutocorrection::No,
+        };
+        let autocapitalization = match self.capitalization_mode {
+            DemoCapitalizationMode::None => TextInputAutocapitalization::None,
+            DemoCapitalizationMode::Words => TextInputAutocapitalization::Words,
+            DemoCapitalizationMode::Sentences => TextInputAutocapitalization::Sentences,
+            DemoCapitalizationMode::AllCharacters => TextInputAutocapitalization::AllCharacters,
+        };
+
+        TextInputConfig {
+            multiline: self.multiline,
+            secure_entry: self.secure,
+            keyboard_type: self.keyboard_type(),
+            return_key_type,
+            text_content_type: self.content_type(),
+            autocorrection,
+            spell_checking: self.spell_check,
+            autocapitalization,
+            smart_insert_delete: Some(true),
+            keyboard_appearance: self.keyboard_appearance,
+            submit_behavior,
+            enables_return_key_automatically: false,
+            soft_keyboard: self.soft_keyboard,
+        }
+    }
+
+    fn submit_text_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.submitted.push(self.value.clone());
+        if self.submitted.len() > 5 {
+            self.submitted.remove(0);
+        }
+        if matches!(self.return_mode, DemoReturnMode::SubmitAndBlur) {
+            window.blur();
+        }
+        cx.notify();
+    }
+}
+
+impl Render for IosTextInputDemo {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let safe = window.safe_area_insets();
+        let focused = self.focus_handle.is_focused(window);
+        let display_text = if self.value.is_empty() && !focused {
+            "Tap here to type...".to_string()
+        } else {
+            self.value.clone()
+        };
+        let input_entity = cx.entity();
+        let border_color = if focused { 0x89b4fa } else { 0x585b70 };
+
+        let pill = |label: &str, active: bool| {
+            div()
+                .px(px(10.0))
+                .py(px(6.0))
+                .rounded(px(6.0))
+                .bg(rgb(if active { 0x89b4fa } else { 0x313244 }))
+                .text_color(rgb(if active { 0x1e1e2e } else { 0xcdd6f4 }))
+                .child(label.to_string())
+        };
+
+        let mut keyboard_modes = div().flex().flex_row().flex_wrap().gap(px(6.0));
+        for (label, mode) in [
+            ("Default", DemoKeyboardMode::Default),
+            ("Email", DemoKeyboardMode::Email),
+            ("URL", DemoKeyboardMode::Url),
+            ("Number", DemoKeyboardMode::NumberPad),
+            ("Decimal", DemoKeyboardMode::DecimalPad),
+            ("Phone", DemoKeyboardMode::Phone),
+            ("OTP", DemoKeyboardMode::OneTimeCode),
+            ("Password", DemoKeyboardMode::Password),
+        ] {
+            let active =
+                std::mem::discriminant(&self.keyboard_mode) == std::mem::discriminant(&mode);
+            keyboard_modes = keyboard_modes.child(pill(label, active).on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.keyboard_mode = mode;
+                    this.secure = matches!(mode, DemoKeyboardMode::Password);
+                    this.multiline = false;
+                    cx.notify();
+                }),
+            ));
+        }
+
+        let mut return_modes = div().flex().flex_row().gap(px(6.0)).flex_wrap();
+        for (label, mode) in [
+            ("Submit", DemoReturnMode::Submit),
+            ("Blur", DemoReturnMode::SubmitAndBlur),
+            ("Newline", DemoReturnMode::InsertNewline),
+            ("Search", DemoReturnMode::Search),
+            ("Send", DemoReturnMode::Send),
+        ] {
+            let active = std::mem::discriminant(&self.return_mode) == std::mem::discriminant(&mode);
+            return_modes = return_modes.child(pill(label, active).on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.return_mode = mode;
+                    cx.notify();
+                }),
+            ));
+        }
+
+        let mut autocorrect_modes = div().flex().flex_row().gap(px(6.0));
+        for (label, mode) in [
+            ("Default", DemoAutocorrectMode::Default),
+            ("On", DemoAutocorrectMode::On),
+            ("Off", DemoAutocorrectMode::Off),
+        ] {
+            let active =
+                std::mem::discriminant(&self.autocorrect_mode) == std::mem::discriminant(&mode);
+            autocorrect_modes = autocorrect_modes.child(pill(label, active).on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.autocorrect_mode = mode;
+                    cx.notify();
+                }),
+            ));
+        }
+
+        let mut capitalization_modes = div().flex().flex_row().gap(px(6.0)).flex_wrap();
+        for (label, mode) in [
+            ("None", DemoCapitalizationMode::None),
+            ("Words", DemoCapitalizationMode::Words),
+            ("Sentences", DemoCapitalizationMode::Sentences),
+            ("All", DemoCapitalizationMode::AllCharacters),
+        ] {
+            let active =
+                std::mem::discriminant(&self.capitalization_mode) == std::mem::discriminant(&mode);
+            capitalization_modes = capitalization_modes.child(pill(label, active).on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.capitalization_mode = mode;
+                    cx.notify();
+                }),
+            ));
+        }
+
+        let mut content = div()
+            .flex()
+            .flex_col()
+            .gap(px(12.0))
+            .p(px(20.0))
+            .pb(safe.bottom)
+            .w_full()
+            .child(div().text_size(px(24.0)).child("Text Input"))
+            .child(div().text_size(px(13.0)).text_color(rgb(0xa6adc8)).child(
+                "UIKit-backed GPUI input with selection, IME, traits, submit, and multiline modes.",
+            ))
+            .child(
+                div()
+                    .id("text-input-field")
+                    .w_full()
+                    .min_h(if self.multiline { px(180.0) } else { px(48.0) })
+                    .relative()
+                    .p(px(12.0))
+                    .bg(rgb(0x313244))
+                    .rounded(px(8.0))
+                    .border_1()
+                    .border_color(rgb(border_color))
+                    .child(
+                        div()
+                            .text_size(px(15.0))
+                            .text_color(if self.value.is_empty() && !focused {
+                                rgb(0x6c7086)
+                            } else {
+                                rgb(0xcdd6f4)
+                            })
+                            .child(display_text),
+                    )
+                    .child(
+                        canvas(
+                            |_bounds, _window, _cx| (),
+                            move |bounds, (), window, cx| {
+                                window.handle_input(
+                                    &input_entity.read(cx).focus_handle.clone(),
+                                    ElementInputHandler::new(bounds, input_entity.clone()),
+                                    cx,
+                                );
+                            },
+                        )
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .right_0()
+                        .bottom_0(),
+                    )
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|_this, _, window, cx| {
+                            cx.stop_propagation();
+                            cx.focus_self(window);
+                            cx.notify();
+                        }),
+                    ),
+            )
+            .child(
+                div()
+                    .text_size(px(12.0))
+                    .text_color(rgb(0xa6adc8))
+                    .child(format!(
+                        "selection={}..{} marked={:?}",
+                        self.selection.start, self.selection.end, self.marked_range
+                    )),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .gap(px(8.0))
+                    .child(pill("Single line", !self.multiline).on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _, _, cx| {
+                            this.multiline = false;
+                            cx.notify();
+                        }),
+                    ))
+                    .child(pill("Multiline", self.multiline).on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _, _, cx| {
+                            this.multiline = true;
+                            this.secure = false;
+                            cx.notify();
+                        }),
+                    ))
+                    .child(pill("Secure", self.secure).on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _, _, cx| {
+                            this.secure = !this.secure;
+                            if this.secure {
+                                this.multiline = false;
+                                this.keyboard_mode = DemoKeyboardMode::Password;
+                            }
+                            cx.notify();
+                        }),
+                    )),
+            )
+            .child(keyboard_modes)
+            .child(return_modes)
+            .child(autocorrect_modes)
+            .child(capitalization_modes)
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .gap(px(8.0))
+                    .child(
+                        pill(
+                            "Spell Default",
+                            matches!(self.spell_check, TextInputSpellChecking::Default),
+                        )
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _, _, cx| {
+                                this.spell_check = TextInputSpellChecking::Default;
+                                cx.notify();
+                            }),
+                        ),
+                    )
+                    .child(
+                        pill(
+                            "Spell On",
+                            matches!(self.spell_check, TextInputSpellChecking::Yes),
+                        )
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _, _, cx| {
+                                this.spell_check = TextInputSpellChecking::Yes;
+                                cx.notify();
+                            }),
+                        ),
+                    )
+                    .child(
+                        pill(
+                            "Spell Off",
+                            matches!(self.spell_check, TextInputSpellChecking::No),
+                        )
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _, _, cx| {
+                                this.spell_check = TextInputSpellChecking::No;
+                                cx.notify();
+                            }),
+                        ),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .gap(px(8.0))
+                    .child(
+                        pill(
+                            "Keyboard Auto",
+                            matches!(self.soft_keyboard, TextInputSoftKeyboardPolicy::Automatic),
+                        )
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _, _, cx| {
+                                this.soft_keyboard = TextInputSoftKeyboardPolicy::Automatic;
+                                cx.notify();
+                            }),
+                        ),
+                    )
+                    .child(
+                        pill(
+                            "Keyboard Hidden",
+                            matches!(self.soft_keyboard, TextInputSoftKeyboardPolicy::Hidden),
+                        )
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _, _, cx| {
+                                this.soft_keyboard = TextInputSoftKeyboardPolicy::Hidden;
+                                cx.notify();
+                            }),
+                        ),
+                    ),
+            );
+
+        for submitted in self.submitted.iter().rev() {
+            content = content.child(
+                div()
+                    .text_size(px(12.0))
+                    .text_color(rgb(0xf9e2af))
+                    .child(format!("submitted: {submitted}")),
+            );
+        }
+
+        div()
+            .track_focus(&self.focus_handle)
+            .size_full()
+            .flex()
+            .flex_col()
+            .pl(safe.left)
+            .pr(safe.right)
+            .pt(safe.top)
+            .bg(rgb(0x1e1e2e))
+            .text_color(rgb(0xcdd6f4))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|_this, _, window, cx| {
+                    window.blur();
+                    cx.notify();
+                }),
+            )
+            .child(
+                div()
+                    .id("text-input-scroll")
+                    .flex_1()
+                    .overflow_y_scroll()
+                    .child(content),
+            )
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gpui_ios_run_text_input_demo() {
+    run_ios_app("dev.glasshq.GPUIiOSTextInputDemo", |_window, cx| {
+        IosTextInputDemo {
+            focus_handle: cx.focus_handle(),
+            value: String::new(),
+            selection: 0..0,
+            marked_range: None,
+            submitted: Vec::new(),
+            multiline: false,
+            secure: false,
+            keyboard_mode: DemoKeyboardMode::Default,
+            return_mode: DemoReturnMode::SubmitAndBlur,
+            autocorrect_mode: DemoAutocorrectMode::Default,
+            capitalization_mode: DemoCapitalizationMode::Sentences,
+            spell_check: TextInputSpellChecking::Default,
+            keyboard_appearance: TextInputKeyboardAppearance::Default,
+            soft_keyboard: TextInputSoftKeyboardPolicy::Automatic,
         }
     });
 }
@@ -3126,134 +3891,6 @@ pub extern "C" fn gpui_ios_run_layout_showcase() {
 // Validation Demos
 // ---------------------------------------------------------------------------
 
-struct IosTier1KeyboardImeDemo {
-    focus_handle: FocusHandle,
-    text: String,
-    recent_events: Vec<String>,
-}
-
-impl Focusable for IosTier1KeyboardImeDemo {
-    fn focus_handle(&self, _cx: &App) -> FocusHandle {
-        self.focus_handle.clone()
-    }
-}
-
-impl Render for IosTier1KeyboardImeDemo {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let safe = window.safe_area_insets();
-        let focused = self.focus_handle.is_focused(window);
-        let border_color = if focused { 0x89b4fa } else { 0x585b70 };
-        let display_text = if self.text.is_empty() {
-            "<empty>".to_string()
-        } else {
-            self.text.clone()
-        };
-
-        let mut events = div().flex().flex_col().gap(px(4.0));
-        for line in self.recent_events.iter().rev().take(10) {
-            events = events.child(
-                div()
-                    .text_size(px(11.0))
-                    .text_color(rgb(0xa6adc8))
-                    .child(line.clone()),
-            );
-        }
-
-        div()
-            .id("tier1-keyboard-ime-root")
-            .track_focus(&self.focus_handle)
-            .size_full()
-            .pt(safe.top + px(16.0))
-            .pb(safe.bottom + px(16.0))
-            .pl(safe.left + px(16.0))
-            .pr(safe.right + px(16.0))
-            .bg(rgb(0x1e1e2e))
-            .text_color(rgb(0xcdd6f4))
-            .flex()
-            .flex_col()
-            .gap(px(12.0))
-            .on_key_down(cx.listener(|this: &mut Self, event: &KeyDownEvent, _, cx| {
-                let key = event.keystroke.key.clone();
-                let key_char = event.keystroke.key_char.clone();
-
-                if key == "backspace" {
-                    this.text.pop();
-                } else if key == "enter" {
-                    this.text.push('\n');
-                } else if let Some(ch) = key_char.as_deref() {
-                    this.text.push_str(ch);
-                }
-
-                this.recent_events.push(format!(
-                    "key={} key_char={:?} held={} mods={:?} native={:?}",
-                    key,
-                    key_char,
-                    event.is_held,
-                    event.keystroke.modifiers,
-                    event.keystroke.native_key_code
-                ));
-                if this.recent_events.len() > 40 {
-                    this.recent_events.remove(0);
-                }
-
-                cx.notify();
-            }))
-            .child(div().text_size(px(22.0)).child("Keyboard + IME Validation"))
-            .child(div().text_size(px(12.0)).text_color(rgb(0xa6adc8)).child(
-                "Tap the input area, then test hardware keys and IME composition (CJK/emoji).",
-            ))
-            .child(
-                div()
-                    .id("tier1-keyboard-ime-input")
-                    .w_full()
-                    .min_h(px(120.0))
-                    .p(px(12.0))
-                    .bg(rgb(0x313244))
-                    .rounded(px(8.0))
-                    .border_1()
-                    .border_color(rgb(border_color))
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|_this, _, window, cx| {
-                            cx.focus_self(window);
-                            cx.notify();
-                        }),
-                    )
-                    .child(div().text_size(px(15.0)).child(display_text)),
-            )
-            .child(
-                div()
-                    .text_size(px(13.0))
-                    .text_color(rgb(0xf9e2af))
-                    .child(if focused {
-                        "Focus: active"
-                    } else {
-                        "Focus: inactive (tap input area)"
-                    }),
-            )
-            .child(
-                div()
-                    .w_full()
-                    .p(px(10.0))
-                    .rounded(px(8.0))
-                    .bg(rgb(0x181825))
-                    .child(events),
-            )
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_keyboard_ime_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSKeyboardIMEValidation", |_window, cx| {
-        let focus_handle = cx.focus_handle();
-        IosTier1KeyboardImeDemo {
-            focus_handle,
-            text: String::new(),
-            recent_events: Vec::new(),
-        }
-    });
-}
-
 struct IosTier1FilePickerDemo {
     status: String,
     picked_paths: Vec<String>,
@@ -3763,16 +4400,15 @@ const AVAILABLE_DEMOS: &[&str] = &[
     "lifecycle",
     "combined",
     "scroll",
-    "text_input",
     "vertical_scroll",
     "horizontal_scroll",
     "pinch",
     "rotation",
+    "text_input",
     "controls",
     "native_controls",
     "safe_area",
     "layout_showcase",
-    "keyboard_ime",
     "file_picker",
     "clipboard",
     "file_drop",
@@ -3794,16 +4430,15 @@ pub unsafe extern "C" fn gpui_ios_run_demo(name: *const std::ffi::c_char) {
         "lifecycle" => gpui_ios_run_lifecycle_demo(),
         "combined" => gpui_ios_run_combined_demo(),
         "scroll" => gpui_ios_run_scroll_demo(),
-        "text_input" => gpui_ios_run_text_input_demo(),
         "vertical_scroll" => gpui_ios_run_vertical_scroll_demo(),
         "horizontal_scroll" => gpui_ios_run_horizontal_scroll_demo(),
         "pinch" => gpui_ios_run_pinch_demo(),
         "rotation" => gpui_ios_run_rotation_demo(),
+        "text_input" => gpui_ios_run_text_input_demo(),
         "controls" => gpui_ios_run_controls_demo(),
         "native_controls" => gpui_ios_run_native_controls_demo(),
         "safe_area" => gpui_ios_run_safe_area_demo(),
         "layout_showcase" => gpui_ios_run_layout_showcase(),
-        "keyboard_ime" => gpui_ios_run_keyboard_ime_demo(),
         "file_picker" => gpui_ios_run_file_picker_demo(),
         "clipboard" => gpui_ios_run_clipboard_demo(),
         "file_drop" => gpui_ios_run_file_drop_demo(),
