@@ -196,6 +196,7 @@ impl Host for IosHost {
                 .simulator_udid
                 .as_deref()
                 .context("missing booted simulator after build")?;
+            ensure_simulator_ui(simulator_udid)?;
             let terminate_status = Command::new("xcrun")
                 .args(["simctl", "terminate", simulator_udid, self.bundle_id()])
                 .status();
@@ -589,6 +590,20 @@ fn ensure_booted_simulator() -> Result<String> {
     Ok(udid)
 }
 
+fn ensure_simulator_ui(udid: &str) -> Result<()> {
+    let open_status = Command::new("open")
+        .args(["-a", "Simulator"])
+        .status()
+        .context("failed to open Simulator.app")?;
+    ensure_success(open_status, "failed to open Simulator.app")?;
+
+    let bootstatus = Command::new("xcrun")
+        .args(["simctl", "bootstatus", udid, "-b"])
+        .status()
+        .context("failed to wait for simulator boot status")?;
+    ensure_success(bootstatus, "simulator failed to finish booting")
+}
+
 fn booted_simulator_udid() -> Result<Option<String>> {
     let json = command_json(
         Command::new("xcrun").args(["simctl", "list", "devices", "booted", "-j"]),
@@ -714,10 +729,24 @@ fn select_device(requested: Option<&str>) -> Result<Device> {
     }
 
     if let Some(requested_id) = requested {
-        return devices
+        let requested = requested_id.trim();
+        let device = devices
             .into_iter()
-            .find(|device| device.core_id == requested_id || device.legacy_udid == requested_id)
-            .with_context(|| format!("device `{requested_id}` not found"));
+            .find(|device| {
+                device.core_id == requested
+                    || device.legacy_udid == requested
+                    || device.name == requested
+            })
+            .with_context(|| format!("device `{requested}` not found"))?;
+
+        if matches!(device.status, DeviceStatus::Unavailable) {
+            bail!(
+                "device `{}` is unavailable; unlock it, trust this Mac, enable Developer Mode, and connect it by USB or usable Wi-Fi pairing",
+                device.name
+            );
+        }
+
+        return Ok(device);
     }
 
     devices
