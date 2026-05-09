@@ -804,10 +804,9 @@ pub(crate) unsafe fn add_native_popover_clickable_row(
         let row_view: id = msg_send![row_view, initWithFrame: row_frame];
 
         // Initialize ivars
-        (*(row_view as *mut Object)).set_ivar::<BOOL>(HOVER_IVAR, NO);
-        (*(row_view as *mut Object))
-            .set_ivar::<BOOL>(SELECTED_IVAR, if selected { YES } else { NO });
-        (*(row_view as *mut Object)).set_ivar::<*mut c_void>(CALLBACK_IVAR, ptr::null_mut());
+        (*row_view).set_ivar::<BOOL>(HOVER_IVAR, NO);
+        (*row_view).set_ivar::<BOOL>(SELECTED_IVAR, if selected { YES } else { NO });
+        (*row_view).set_ivar::<*mut c_void>(CALLBACK_IVAR, ptr::null_mut());
 
         // Set up tracking area for hover
         let bounds: NSRect = msg_send![row_view, bounds];
@@ -902,7 +901,7 @@ pub(crate) unsafe fn add_native_popover_clickable_row(
         let callbacks_ptr = if on_click.is_some() && enabled {
             let callbacks = HoverRowCallbacks { on_click };
             let ptr = Box::into_raw(Box::new(callbacks)) as *mut c_void;
-            (*(row_view as *mut Object)).set_ivar::<*mut c_void>(CALLBACK_IVAR, ptr);
+            (*row_view).set_ivar::<*mut c_void>(CALLBACK_IVAR, ptr);
             ptr
         } else {
             ptr::null_mut()

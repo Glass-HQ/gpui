@@ -4,9 +4,9 @@ use std::rc::Rc;
 
 use crate::platform::native_controls::{NativeControlState, SearchFieldConfig, TextFieldCallbacks};
 use crate::{
-    px, AbsoluteLength, App, Bounds, DefiniteLength, Element, ElementId, GlobalElementId,
+    AbsoluteLength, App, Bounds, DefiniteLength, Element, ElementId, GlobalElementId,
     InspectorElementId, IntoElement, LayoutId, Length, Pixels, SharedString, Style,
-    StyleRefinement, Styled, Window,
+    StyleRefinement, Styled, Window, px,
 };
 
 use super::native_element_helpers::{
@@ -114,26 +114,17 @@ impl NativeSearchField {
         self
     }
 
-    pub fn on_move_up(
-        mut self,
-        listener: impl Fn(&mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_move_up(mut self, listener: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_move_up = Some(Box::new(listener));
         self
     }
 
-    pub fn on_move_down(
-        mut self,
-        listener: impl Fn(&mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_move_down(mut self, listener: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_move_down = Some(Box::new(listener));
         self
     }
 
-    pub fn on_cancel(
-        mut self,
-        listener: impl Fn(&mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_cancel(mut self, listener: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_cancel = Some(Box::new(listener));
         self
     }
@@ -230,8 +221,15 @@ impl Element for NativeSearchField {
             let mut state = prev_state.flatten().unwrap_or_default();
 
             let callbacks = build_search_field_callbacks(
-                on_change, on_submit, on_focus, on_blur, on_move_up, on_move_down, on_cancel,
-                nfc, inv,
+                on_change,
+                on_submit,
+                on_focus,
+                on_blur,
+                on_move_up,
+                on_move_down,
+                on_cancel,
+                nfc,
+                inv,
             );
 
             let scale = window.scale_factor();
@@ -319,9 +317,8 @@ fn build_search_field_callbacks(
         )
     });
 
-    let cancel_cb = on_cancel.map(|h| {
-        schedule_native_focus_callback(Rc::new(h), next_frame_callbacks, invalidator)
-    });
+    let cancel_cb = on_cancel
+        .map(|h| schedule_native_focus_callback(Rc::new(h), next_frame_callbacks, invalidator));
 
     TextFieldCallbacks {
         on_change: change_cb,

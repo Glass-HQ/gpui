@@ -217,8 +217,12 @@ impl SidebarOverlayPanel {
             .hover(move |style| style.bg(hover))
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                    this.open_gpui_overlay(overlay, event.position, title, cx);
+                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                    if matches!(overlay, OverlayKind::Popover | OverlayKind::ActionMenu) {
+                        this.open_overlay(overlay, event.position, title, window, cx);
+                    } else {
+                        this.open_gpui_overlay(overlay, event.position, title, cx);
+                    }
                 }),
             )
             .child(

@@ -21,12 +21,12 @@ use crate::{
     Hitbox, HitboxBehavior, HitboxId, InspectorElementId, IntoElement, IsZero, KeyContext,
     KeyDownEvent, KeyUpEvent, KeyboardButton, KeyboardClickEvent, LayoutId, ModifiersChangedEvent,
     MouseButton, MouseClickEvent, MouseDownEvent, MouseMoveEvent, MousePressureEvent, MouseUpEvent,
-    Overflow, ParentElement, Pixels, PinchEvent, Point, Render, RotationEvent, ScrollWheelEvent,
-    SharedString, Size, Style,
-    StyleRefinement, Styled, Task, TooltipId, Visibility, Window, WindowControlArea, point, px,
-    size,
+    Overflow, ParentElement, PinchEvent, Pixels, Point, Render, RotationEvent, ScrollWheelEvent,
+    SharedString, Size, Style, StyleRefinement, Styled, Task, TooltipId, Visibility, Window,
+    WindowControlArea, point, px, size,
 };
 use collections::HashMap;
+use gpui_util::ResultExt;
 use refineable::Refineable;
 use smallvec::SmallVec;
 use stacksafe::{StackSafe, stacksafe};
@@ -41,7 +41,6 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use gpui_util::ResultExt;
 
 use super::ImageCacheProvider;
 
@@ -355,10 +354,7 @@ impl Interactivity {
     }
 
     /// Bind the given callback to pinch gesture events on this element.
-    pub fn on_pinch(
-        &mut self,
-        listener: impl Fn(&PinchEvent, &mut Window, &mut App) + 'static,
-    ) {
+    pub fn on_pinch(&mut self, listener: impl Fn(&PinchEvent, &mut Window, &mut App) + 'static) {
         self.pinch_listeners
             .push(Box::new(move |event, phase, hitbox, window, cx| {
                 if phase == DispatchPhase::Bubble && hitbox.is_hovered(window) {
@@ -933,10 +929,7 @@ pub trait InteractiveElement: Sized {
     }
 
     /// Bind the given callback to pinch gesture events on this element.
-    fn on_pinch(
-        mut self,
-        listener: impl Fn(&PinchEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    fn on_pinch(mut self, listener: impl Fn(&PinchEvent, &mut Window, &mut App) + 'static) -> Self {
         self.interactivity().on_pinch(listener);
         self
     }

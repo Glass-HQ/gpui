@@ -239,10 +239,10 @@ impl Render for SearchResultsView {
                             .flex()
                             .justify_between()
                             .items_center()
-                            .child(div().text_sm().text_color(fg).child(title.clone()))
+                            .child(div().text_sm().text_color(fg).child(title))
                             .child(div().text_xs().text_color(muted).child(badge)),
                     )
-                    .child(div().text_xs().text_color(muted).child(detail.clone()))
+                    .child(div().text_xs().text_color(muted).child(detail))
             }))
     }
 }

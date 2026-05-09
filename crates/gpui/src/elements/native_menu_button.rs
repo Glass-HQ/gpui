@@ -3,9 +3,9 @@ use std::rc::Rc;
 
 use crate::platform::native_controls::{MenuButtonConfig, NativeControlState, NativeMenuItemData};
 use crate::{
-    px, AbsoluteLength, AnyWindowHandle, App, AsyncApp, Bounds, DefiniteLength, Element,
-    ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Length, Pixels, Point,
-    SharedString, Style, StyleRefinement, Styled, Window,
+    AbsoluteLength, AnyWindowHandle, App, AsyncApp, Bounds, DefiniteLength, Element, ElementId,
+    GlobalElementId, InspectorElementId, IntoElement, LayoutId, Length, Pixels, Point,
+    SharedString, Style, StyleRefinement, Styled, Window, px,
 };
 
 use super::native_element_helpers::schedule_native_callback;
@@ -48,9 +48,7 @@ fn deferred_update(
     f: impl FnOnce(&mut Window, &mut App) + 'static,
 ) {
     async_app.update(|cx| {
-        window_handle
-            .update(cx, |_, window, cx| f(window, cx))
-            .ok();
+        window_handle.update(cx, |_, window, cx| f(window, cx)).ok();
     });
 }
 

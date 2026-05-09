@@ -316,21 +316,16 @@ pub struct StackViewConfig {
 }
 
 /// Which window edge hosts a native sidebar pane.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum NativeSidebarSide {
     /// Place the sidebar on the leading edge of the window.
+    #[default]
     Leading,
     /// Place the sidebar on the trailing edge of the window.
     ///
     /// On macOS this maps to AppKit's inspector behavior when available so the
     /// trailing pane uses native toolbar actions and full-height window chrome.
     Trailing,
-}
-
-impl Default for NativeSidebarSide {
-    fn default() -> Self {
-        Self::Leading
-    }
 }
 
 pub struct SidebarViewConfig<'a> {

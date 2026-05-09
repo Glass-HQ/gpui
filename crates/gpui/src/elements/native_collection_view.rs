@@ -1,7 +1,9 @@
 use refineable::Refineable as _;
 use std::rc::Rc;
 
-use crate::platform::native_controls::{CollectionItemStyle, CollectionViewConfig, NativeControlState};
+use crate::platform::native_controls::{
+    CollectionItemStyle, CollectionViewConfig, NativeControlState,
+};
 use crate::{
     AbsoluteLength, App, Bounds, DefiniteLength, Element, ElementId, GlobalElementId,
     InspectorElementId, IntoElement, LayoutId, Length, Pixels, SharedString, Style,

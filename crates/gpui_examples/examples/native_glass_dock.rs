@@ -287,7 +287,7 @@ impl Render for SidebarContent {
                             .segment_style(NativeSegmentedStyle::Automatic)
                             .on_select(cx.listener(|this, ev: &SegmentSelectEvent, _, cx| {
                                 this.active_panel = ev.index;
-                                this.status_text = format!("{}", Panel::ALL[ev.index].label());
+                                this.status_text = Panel::ALL[ev.index].label().to_string();
                                 cx.notify();
                             })),
                     ),
@@ -958,10 +958,12 @@ fn main() {
 
         cx.set_menus(vec![
             Menu {
+                disabled: false,
                 name: "View".into(),
                 items: vec![MenuItem::action("Toggle Sidebar", ToggleSidebar)],
             },
             Menu {
+                disabled: false,
                 name: "Git".into(),
                 items: vec![
                     MenuItem::action("Stage All", StageAll),

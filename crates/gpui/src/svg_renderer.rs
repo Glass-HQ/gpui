@@ -17,8 +17,12 @@ const EMOJI_FONT_FAMILIES: &[&str] = &["Apple Color Emoji", ".AppleColorEmojiUI"
 const EMOJI_FONT_FAMILIES: &[&str] = &["Segoe UI Emoji", "Segoe UI Symbol"];
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-const EMOJI_FONT_FAMILIES: &[&str] =
-    &["Noto Color Emoji", "Emoji One", "Twitter Color Emoji", "JoyPixels"];
+const EMOJI_FONT_FAMILIES: &[&str] = &[
+    "Noto Color Emoji",
+    "Emoji One",
+    "Twitter Color Emoji",
+    "JoyPixels",
+];
 
 #[cfg(not(any(
     target_os = "macos",

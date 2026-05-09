@@ -6,10 +6,10 @@ as thin packaging shells.
 ## Layers
 
 1. `crates/*`
-   Rust runtime, rendering, platform adapters, and demos.
+   Rust runtime, rendering, platform adapters, and shared example code.
 2. `hosts/*`
-   Native app hosts required by operating systems that need platform-specific
-   packaging, signing, or launch metadata.
+   Native or platform-specific boot wrappers required for packaging, signing,
+   HTML bootstrapping, or launch metadata.
 3. `cargo gpui`
    The canonical orchestration entrypoint for syncing hosts, building, running,
    and future platform workflows.
@@ -34,6 +34,28 @@ phase invokes `cargo gpui host build-rust ios` directly, so the Rust static
 library is produced through the same tooling path used by local development.
 `cargo gpui host sync ios` replaces generated Xcode output instead of treating it
 as durable source.
+
+## Web
+
+The web host lives in `hosts/web/hello_web/`.
+
+Checked-in source:
+
+- `Cargo.toml`
+- `main.rs`
+- `index.html`
+- `trunk.toml`
+- `.cargo/config.toml`
+- `rust-toolchain.toml`
+
+Generated or disposable artifacts:
+
+- `dist/`
+- `target/`
+- `Cargo.lock`
+
+The web host is a thin wasm/bootstrap wrapper around shared example code in
+`crates/gpui_examples`.
 
 ## Command Surface
 

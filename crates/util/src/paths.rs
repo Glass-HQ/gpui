@@ -1775,13 +1775,13 @@ mod tests {
             (RelPath::unix("ReadMe.rs").unwrap(), true),
         ];
         paths.sort_by(|&a, &b| compare_rel_paths_mixed(a, b));
-        // All "readme" variants should group together, sorted by extension
+        // All "readme" variants should group together, with extensions sorted ascending.
         assert_eq!(
             paths,
             vec![
-                (RelPath::unix("readme.txt").unwrap(), true),
-                (RelPath::unix("ReadMe.rs").unwrap(), true),
                 (RelPath::unix("README.md").unwrap(), true),
+                (RelPath::unix("ReadMe.rs").unwrap(), true),
+                (RelPath::unix("readme.txt").unwrap(), true),
             ]
         );
     }
@@ -1894,7 +1894,7 @@ mod tests {
 
     #[test]
     fn compare_rel_paths_mixed_same_stem_different_extension() {
-        // Files with same stem but different extensions should sort by extension
+        // Files with same stem but different extensions should sort by extension ascending.
         let mut paths = vec![
             (RelPath::unix("file.rs").unwrap(), true),
             (RelPath::unix("file.md").unwrap(), true),
@@ -1904,9 +1904,9 @@ mod tests {
         assert_eq!(
             paths,
             vec![
-                (RelPath::unix("file.txt").unwrap(), true),
-                (RelPath::unix("file.rs").unwrap(), true),
                 (RelPath::unix("file.md").unwrap(), true),
+                (RelPath::unix("file.rs").unwrap(), true),
+                (RelPath::unix("file.txt").unwrap(), true),
             ]
         );
     }
@@ -1932,7 +1932,8 @@ mod tests {
 
     #[test]
     fn compare_rel_paths_mixed_deep_nesting() {
-        // Test sorting with deeply nested paths
+        // When prefixes match case-insensitively, mixed mode keeps walking deeper
+        // before applying the final full-path tie-breaker.
         let mut paths = vec![
             (RelPath::unix("a/b/c.txt").unwrap(), true),
             (RelPath::unix("A/B.txt").unwrap(), true),
@@ -1943,8 +1944,8 @@ mod tests {
         assert_eq!(
             paths,
             vec![
-                (RelPath::unix("A/B.txt").unwrap(), true),
                 (RelPath::unix("a/b/c.txt").unwrap(), true),
+                (RelPath::unix("A/B.txt").unwrap(), true),
                 (RelPath::unix("a.txt").unwrap(), true),
                 (RelPath::unix("A.txt").unwrap(), true),
             ]

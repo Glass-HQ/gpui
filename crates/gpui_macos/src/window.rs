@@ -3131,7 +3131,7 @@ extern "C" fn handle_key_event(this: &Object, native_event: id, key_equivalent: 
                     return YES;
                 }
 
-                return run_callback(PlatformInput::KeyDown(key_down_event.clone()));
+                return run_callback(PlatformInput::KeyDown(key_down_event));
             }
 
             let handled = run_callback(PlatformInput::KeyDown(key_down_event.clone()));
@@ -3518,7 +3518,7 @@ extern "C" fn window_did_change_key_status(this: &Object, selector: Sel, _: id) 
                 let mut lock = window_state.lock();
                 lock.request_frame_callback = Some(callback);
                 lock.renderer.set_presents_with_transaction(false);
-                sync_renderer_drawable_size(&mut *lock);
+                sync_renderer_drawable_size(&mut lock);
                 lock.start_display_link();
             }
         } else {
@@ -3660,7 +3660,7 @@ extern "C" fn display_layer(this: &Object, _: Sel, _: id) {
         let mut lock = window_state.lock();
         lock.request_frame_callback = Some(callback);
         lock.renderer.set_presents_with_transaction(false);
-        sync_renderer_drawable_size(&mut *lock);
+        sync_renderer_drawable_size(&mut lock);
         lock.start_display_link();
         drop(lock);
         flush_pending_resize_callback(&window_state, "display_layer");
@@ -3678,7 +3678,7 @@ extern "C" fn step(view: *mut c_void) {
         callback(Default::default());
         let mut lock = window_state.lock();
         // Sync renderer drawable size in case setFrameSize: was deferred
-        sync_renderer_drawable_size(&mut *lock);
+        sync_renderer_drawable_size(&mut lock);
         lock.request_frame_callback = Some(callback);
         drop(lock);
         flush_pending_resize_callback(&window_state, "step");

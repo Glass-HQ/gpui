@@ -158,7 +158,7 @@ unsafe fn host_data_ptr(host_view: id) -> *mut SidebarHostData {
         if host_view == nil {
             return ptr::null_mut();
         }
-        let object = host_view as *mut Object;
+        let object = host_view;
         let ptr: *mut c_void = *(*object).get_ivar(HOST_DATA_IVAR);
         ptr as *mut SidebarHostData
     }
@@ -294,7 +294,7 @@ unsafe fn ensure_sidebar_toggle_items(
         if show_sidebar_toggle {
             // FlexibleSpace before the toggle pushes it to the trailing edge of
             // the sidebar zone (right side of the sidebar header).
-            wanted.push(flexible.clone());
+            wanted.push(flexible);
             wanted.push(toolbar_toggle_sidebar_identifier());
             if let Some(separator) = toolbar_tracking_separator_identifier(false) {
                 wanted.push(separator);
@@ -1014,7 +1014,7 @@ pub(crate) unsafe fn create_sidebar(
             has_inspector,
         };
         let host_data_ptr = Box::into_raw(Box::new(host_data)) as *mut c_void;
-        (*(host_view as *mut Object)).set_ivar::<*mut c_void>(HOST_DATA_IVAR, host_data_ptr);
+        (*host_view).set_ivar::<*mut c_void>(HOST_DATA_IVAR, host_data_ptr);
 
         let _: () = msg_send![sidebar_vc, release];
         let _: () = msg_send![content_vc, release];
@@ -1726,9 +1726,8 @@ pub(crate) unsafe fn set_sidebar_header(
             // Target/action via header button class
             let target: id = msg_send![SIDEBAR_HEADER_BUTTON_CLASS, alloc];
             let target: id = msg_send![target, init];
-            (*(target as *mut Object))
-                .set_ivar::<*mut c_void>("hostViewPtr", host_view as *mut c_void);
-            (*(target as *mut Object)).set_ivar::<i64>("buttonIndex", index as i64);
+            (*target).set_ivar::<*mut c_void>("hostViewPtr", host_view as *mut c_void);
+            (*target).set_ivar::<i64>("buttonIndex", index as i64);
             let _: () = msg_send![button, setTarget: target];
             let _: () = msg_send![button, setAction: sel!(headerButtonAction:)];
             targets.push(target);
@@ -2331,7 +2330,7 @@ pub(crate) unsafe fn release_sidebar_view(host_view: id) {
             let _: () = msg_send![host_data.split_view_controller, release];
         }
 
-        let object = host_view as *mut Object;
+        let object = host_view;
         (*object).set_ivar::<*mut c_void>(HOST_DATA_IVAR, ptr::null_mut());
         let _: () = msg_send![host_view, release];
     }

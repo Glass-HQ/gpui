@@ -3,9 +3,9 @@ use std::rc::Rc;
 
 use crate::platform::native_controls::{ComboBoxCallbacks, ComboBoxConfig, NativeControlState};
 use crate::{
-    px, AbsoluteLength, App, Bounds, DefiniteLength, Element, ElementId, GlobalElementId,
+    AbsoluteLength, App, Bounds, DefiniteLength, Element, ElementId, GlobalElementId,
     InspectorElementId, IntoElement, LayoutId, Length, Pixels, SharedString, Style,
-    StyleRefinement, Styled, Window,
+    StyleRefinement, Styled, Window, px,
 };
 
 use super::native_element_helpers::schedule_native_callback;
@@ -194,11 +194,7 @@ impl Element for NativeComboBox {
             let callbacks = build_combo_box_callbacks(on_change, on_select, nfc, inv);
 
             let item_strs: Vec<&str> = items.iter().map(|s| s.as_ref()).collect();
-            let value = if editable {
-                Some(text.as_ref())
-            } else {
-                None
-            };
+            let value = if editable { Some(text.as_ref()) } else { None };
 
             let scale = window.scale_factor();
             let nc = window.native_controls();

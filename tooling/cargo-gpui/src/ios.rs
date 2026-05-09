@@ -15,30 +15,6 @@ const BUNDLE_ID: &str = "dev.glasshq.GPUIiOS";
 const DEFAULT_TEAM_ID: &str = "DA7B5U47PT";
 const DEFAULT_LOG_PORT: u16 = 9632;
 
-const DEMOS: &[(&str, &str)] = &[
-    ("hello_world", "Colored boxes"),
-    ("touch", "Tappable boxes with tap counter"),
-    ("text", "Text rendering at various sizes"),
-    ("lifecycle", "Window size, appearance, resize counting"),
-    ("combined", "Touch + text + lifecycle + dark/light mode"),
-    ("scroll", "Two-finger pan scrollable list (50 items)"),
-    ("text_input", "UIKit-backed text input validation lab"),
-    (
-        "vertical_scroll",
-        "Single-finger vertical scroll (100 items)",
-    ),
-    ("horizontal_scroll", "Single-finger horizontal card strip"),
-    ("pinch", "Pinch gesture to scale (0.25x–5x)"),
-    ("rotation", "Two-finger rotation with color shift"),
-    ("controls", "GPUI-painted controls demo"),
-    ("native_controls", "UIKit native controls demo"),
-    ("safe_area", "Visual safe area inset debugger"),
-    ("layout_showcase", "Layout API showcase"),
-    ("file_picker", "Open/save picker validation"),
-    ("clipboard", "Rich clipboard validation"),
-    ("file_drop", "External file drop validation"),
-];
-
 #[derive(Debug)]
 pub struct IosHost {
     paths: HostPaths,
@@ -132,10 +108,16 @@ impl IosHost {
 
 fn print_demos() {
     println!("Available iOS demos:\n");
-    for (name, description) in DEMOS {
-        println!("  {name:<18} {description}");
+    for demo in gpui_examples::ios::IOS_DEMOS {
+        println!("  {:<18} {}", demo.name, demo.description);
     }
     println!("\nRun one with `cargo gpui run ios <demo>`.");
+}
+
+fn is_known_demo(name: &str) -> bool {
+    gpui_examples::ios::IOS_DEMOS
+        .iter()
+        .any(|demo| demo.name == name)
 }
 
 impl Host for IosHost {
@@ -186,7 +168,7 @@ impl Host for IosHost {
             return Ok(());
         };
 
-        if !DEMO_NAMES.contains(&demo_name) {
+        if !is_known_demo(demo_name) {
             bail!("unknown iOS demo `{demo_name}`");
         }
 
@@ -424,8 +406,8 @@ fn build_rust_inner(host: &IosHost) -> Result<()> {
                 .workspace_root
                 .join("target/aarch64-apple-ios")
                 .join(profile_dir)
-                .join("libgpui_ios_app.a");
-            copy_static_lib(&source, &built_products_dir.join("libgpui_ios_app.a"))?;
+                .join("libgpui_ios.a");
+            copy_static_lib(&source, &built_products_dir.join("libgpui_ios.a"))?;
         }
         "iphonesimulator" => {
             build_target(
@@ -442,10 +424,10 @@ fn build_rust_inner(host: &IosHost) -> Result<()> {
                 .workspace_root
                 .join("target/aarch64-apple-ios-sim")
                 .join(profile_dir)
-                .join("libgpui_ios_app.a");
+                .join("libgpui_ios.a");
 
             if host_architecture()?.trim() == "arm64" {
-                copy_static_lib(&arm64, &built_products_dir.join("libgpui_ios_app.a"))?;
+                copy_static_lib(&arm64, &built_products_dir.join("libgpui_ios.a"))?;
             } else {
                 build_target(
                     host,
@@ -461,10 +443,10 @@ fn build_rust_inner(host: &IosHost) -> Result<()> {
                     .workspace_root
                     .join("target/x86_64-apple-ios")
                     .join(profile_dir)
-                    .join("libgpui_ios_app.a");
+                    .join("libgpui_ios.a");
                 let status = Command::new("lipo")
                     .args(["-create", "-output"])
-                    .arg(built_products_dir.join("libgpui_ios_app.a"))
+                    .arg(built_products_dir.join("libgpui_ios.a"))
                     .arg(&arm64)
                     .arg(&x64)
                     .status()
@@ -477,27 +459,6 @@ fn build_rust_inner(host: &IosHost) -> Result<()> {
 
     Ok(())
 }
-
-const DEMO_NAMES: &[&str] = &[
-    "hello_world",
-    "touch",
-    "text",
-    "lifecycle",
-    "combined",
-    "scroll",
-    "text_input",
-    "vertical_scroll",
-    "horizontal_scroll",
-    "pinch",
-    "rotation",
-    "controls",
-    "native_controls",
-    "safe_area",
-    "layout_showcase",
-    "file_picker",
-    "clipboard",
-    "file_drop",
-];
 
 fn configuration_name(release: bool) -> &'static str {
     if release { "Release" } else { "Debug" }
@@ -879,7 +840,7 @@ fn build_target(
         .env("RUSTC", rustc)
         .arg("build")
         .arg("-p")
-        .arg("gpui_ios_app")
+        .arg("gpui_ios")
         .arg("--target")
         .arg(target);
     if release {

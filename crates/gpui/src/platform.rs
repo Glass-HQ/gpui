@@ -1615,8 +1615,20 @@ impl From<RenderImageParams> for AtlasKey {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 #[expect(missing_docs)]
 pub trait PlatformAtlas: Send + Sync {
+    fn get_or_insert_with<'a>(
+        &self,
+        key: &AtlasKey,
+        build: &mut dyn FnMut() -> Result<Option<(Size<DevicePixels>, Cow<'a, [u8]>)>>,
+    ) -> Result<Option<AtlasTile>>;
+    fn remove(&self, key: &AtlasKey);
+}
+
+#[cfg(target_family = "wasm")]
+#[expect(missing_docs)]
+pub trait PlatformAtlas {
     fn get_or_insert_with<'a>(
         &self,
         key: &AtlasKey,

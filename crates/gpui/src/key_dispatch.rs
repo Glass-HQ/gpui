@@ -529,7 +529,10 @@ impl DispatchTree {
         context_stack: &[KeyContext],
     ) -> DispatchResult {
         input.push(keystroke.clone());
-        let (bindings, pending) = self.keymap.borrow().bindings_for_input(&input, context_stack);
+        let (bindings, pending) = self
+            .keymap
+            .borrow()
+            .bindings_for_input(&input, context_stack);
 
         if pending {
             return DispatchResult {
@@ -581,8 +584,7 @@ impl DispatchTree {
         input: SmallVec<[Keystroke; 1]>,
         context_stack: &[KeyContext],
     ) -> SmallVec<[Replay; 1]> {
-        let (suffix, mut to_replay) =
-            self.replay_prefix_with_context_stack(input, context_stack);
+        let (suffix, mut to_replay) = self.replay_prefix_with_context_stack(input, context_stack);
 
         if !suffix.is_empty() {
             to_replay.extend(self.flush_dispatch_with_context_stack(suffix, context_stack))

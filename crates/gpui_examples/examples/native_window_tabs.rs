@@ -154,16 +154,13 @@ fn main() {
             72.0,
         );
 
-        cx.spawn({
-            let primary = primary;
-            async move |cx| {
-                cx.background_executor()
-                    .timer(Duration::from_millis(150))
-                    .await;
-                let _ = primary.update(cx, |_, window, _| {
-                    window.merge_all_windows();
-                });
-            }
+        cx.spawn(async move |cx| {
+            cx.background_executor()
+                .timer(Duration::from_millis(150))
+                .await;
+            let _ = primary.update(cx, |_, window, _| {
+                window.merge_all_windows();
+            });
         })
         .detach();
 

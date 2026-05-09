@@ -10,6 +10,7 @@ workspace = true
 
 [lib]
 path = "src/gpui_ios.rs"
+crate-type = ["rlib", "staticlib"]
 
 [features]
 default = []
@@ -19,6 +20,7 @@ font-kit = ["gpui/font-kit", "dep:font-kit", "dep:smallvec"]
 gpui.workspace = true
 
 [target.'cfg(target_os = "ios")'.dependencies]
+gpui_examples.workspace = true
 gpui_metal.workspace = true
 anyhow.workspace = true
 block = "0.1"
@@ -34,6 +36,7 @@ libc.workspace = true
 log.workspace = true
 metal.workspace = true
 objc.workspace = true
+oslog = "0.2"
 parking_lot.workspace = true
 pathfinder_geometry = "0.5"
 raw-window-handle = "0.6"

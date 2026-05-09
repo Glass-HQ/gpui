@@ -11,7 +11,7 @@ use crate::{
     Styled, Window, px,
 };
 
-use super::native_element_helpers::{schedule_native_callback_no_args, FrameCallback};
+use super::native_element_helpers::{FrameCallback, schedule_native_callback_no_args};
 
 /// Event emitted when the mouse enters a tracking view.
 #[derive(Clone, Debug)]
@@ -43,12 +43,9 @@ pub fn native_tracking_view(id: impl Into<ElementId>) -> NativeTrackingView {
 /// for detecting mouse enter, exit, and move events.
 pub struct NativeTrackingView {
     id: ElementId,
-    on_mouse_enter:
-        Option<Box<dyn Fn(&TrackingMouseEnterEvent, &mut Window, &mut App) + 'static>>,
-    on_mouse_exit:
-        Option<Box<dyn Fn(&TrackingMouseExitEvent, &mut Window, &mut App) + 'static>>,
-    on_mouse_move:
-        Option<Box<dyn Fn(&TrackingMouseMoveEvent, &mut Window, &mut App) + 'static>>,
+    on_mouse_enter: Option<Box<dyn Fn(&TrackingMouseEnterEvent, &mut Window, &mut App) + 'static>>,
+    on_mouse_exit: Option<Box<dyn Fn(&TrackingMouseExitEvent, &mut Window, &mut App) + 'static>>,
+    on_mouse_move: Option<Box<dyn Fn(&TrackingMouseMoveEvent, &mut Window, &mut App) + 'static>>,
     style: StyleRefinement,
 }
 

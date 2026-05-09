@@ -1,4 +1,3 @@
-#![cfg(target_os = "ios")]
 use gpui::{
     App, Bounds, ClipboardEntry, ClipboardItem, Context, ElementInputHandler, EntityInputHandler,
     ExternalPaths, FocusHandle, Focusable, Image, ImageFormat, MouseButton,
@@ -10,16 +9,9 @@ use gpui::{
     native_image_view, native_progress_bar, native_slider, native_stepper, native_switch,
     native_text_field, native_toggle_group, prelude::*, px, rgb, rgba,
 };
-use log::LevelFilter;
-use std::io::Write;
-use std::net::{SocketAddr, TcpStream};
 use std::ops::Range;
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-static STARTED: AtomicBool = AtomicBool::new(false);
-
+pub type AppLauncher = dyn Fn(Box<dyn FnOnce(&mut App)>);
 const IOS_CLIPBOARD_TEST_PNG: [u8; 68] = [
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
     0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x04, 0x00, 0x00, 0x00, 0xb5, 0x1c, 0x0c,
@@ -28,238 +20,103 @@ const IOS_CLIPBOARD_TEST_PNG: [u8; 68] = [
     0xae, 0x42, 0x60, 0x82,
 ];
 
-// ---------------------------------------------------------------------------
-// iOS Logger — os_log + stderr + TCP relay
-// ---------------------------------------------------------------------------
-
-struct TcpSinkState {
-    stream: Option<TcpStream>,
-    last_reconnect_attempt_ms: u64,
+#[derive(Clone, Copy, Debug)]
+pub struct IosDemoDescriptor {
+    pub name: &'static str,
+    pub description: &'static str,
 }
 
-static TCP_SINK: Mutex<Option<TcpSinkState>> = Mutex::new(None);
+pub const IOS_DEMOS: &[IosDemoDescriptor] = &[
+    IosDemoDescriptor {
+        name: "hello_world",
+        description: "Colored boxes",
+    },
+    IosDemoDescriptor {
+        name: "touch",
+        description: "Tappable boxes with tap counter",
+    },
+    IosDemoDescriptor {
+        name: "text",
+        description: "Text rendering at various sizes",
+    },
+    IosDemoDescriptor {
+        name: "lifecycle",
+        description: "Window size, appearance, resize counting",
+    },
+    IosDemoDescriptor {
+        name: "combined",
+        description: "Touch + text + lifecycle + dark/light mode",
+    },
+    IosDemoDescriptor {
+        name: "scroll",
+        description: "Two-finger pan scrollable list (50 items)",
+    },
+    IosDemoDescriptor {
+        name: "text_input",
+        description: "UIKit-backed text input validation lab",
+    },
+    IosDemoDescriptor {
+        name: "vertical_scroll",
+        description: "Single-finger vertical scroll (100 items)",
+    },
+    IosDemoDescriptor {
+        name: "horizontal_scroll",
+        description: "Single-finger horizontal card strip",
+    },
+    IosDemoDescriptor {
+        name: "pinch",
+        description: "Pinch gesture to scale (0.25x–5x)",
+    },
+    IosDemoDescriptor {
+        name: "rotation",
+        description: "Two-finger rotation with color shift",
+    },
+    IosDemoDescriptor {
+        name: "controls",
+        description: "GPUI-painted controls demo",
+    },
+    IosDemoDescriptor {
+        name: "native_controls",
+        description: "UIKit native controls demo",
+    },
+    IosDemoDescriptor {
+        name: "safe_area",
+        description: "Visual safe area inset debugger",
+    },
+    IosDemoDescriptor {
+        name: "layout_showcase",
+        description: "Layout API showcase",
+    },
+    IosDemoDescriptor {
+        name: "file_picker",
+        description: "Open/save picker validation",
+    },
+    IosDemoDescriptor {
+        name: "clipboard",
+        description: "Rich clipboard validation",
+    },
+    IosDemoDescriptor {
+        name: "file_drop",
+        description: "External file drop validation",
+    },
+];
 
-/// Relay address parsed once at init, reused for reconnection.
-static RELAY_ADDR: Mutex<Option<SocketAddr>> = Mutex::new(None);
-
-/// Cooldown between TCP reconnection attempts (5 seconds).
-const TCP_RECONNECT_COOLDOWN_MS: u64 = 5_000;
-
-struct IosLogger {
-    subsystem: String,
-}
-
-impl IosLogger {
-    fn new(subsystem: &str) -> Self {
-        Self {
-            subsystem: subsystem.to_string(),
-        }
-    }
-
-    fn level_color(level: log::Level) -> &'static str {
-        match level {
-            log::Level::Error => "\x1b[31m",
-            log::Level::Warn => "\x1b[33m",
-            log::Level::Info => "\x1b[32m",
-            log::Level::Debug => "\x1b[36m",
-            log::Level::Trace => "\x1b[90m",
-        }
-    }
-
-    fn level_tag(level: log::Level) -> &'static str {
-        match level {
-            log::Level::Error => "ERROR",
-            log::Level::Warn => "WARN ",
-            log::Level::Info => "INFO ",
-            log::Level::Debug => "DEBUG",
-            log::Level::Trace => "TRACE",
-        }
-    }
-
-    fn timestamp() -> String {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
-        let total_secs = now.as_secs();
-        let millis = now.subsec_millis();
-        let hours = (total_secs / 3600) % 24;
-        let minutes = (total_secs / 60) % 60;
-        let seconds = total_secs % 60;
-        format!("{:02}:{:02}:{:02}.{:03}", hours, minutes, seconds, millis)
-    }
-
-    fn now_ms() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64
-    }
-}
-
-impl log::Log for IosLogger {
-    fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= log::max_level()
-    }
-
-    fn log(&self, record: &log::Record) {
-        if !self.enabled(record.metadata()) {
-            return;
-        }
-
-        let message = format!("{}", record.args());
-        let ts = Self::timestamp();
-
-        let os_log = oslog::OsLog::new(&self.subsystem, record.target());
-        os_log.with_level(record.level().into(), &message);
-
-        let color = Self::level_color(record.level());
-        let reset = "\x1b[0m";
-        let tag = Self::level_tag(record.level());
-        let mut stderr = std::io::stderr().lock();
-        let _ = writeln!(
-            stderr,
-            "{ts} {color}{tag}{reset} [{}] {}",
-            record.target(),
-            message,
-        );
-        let _ = stderr.flush();
-
-        if let Ok(mut guard) = TCP_SINK.lock() {
-            if let Some(ref mut sink) = *guard {
-                let line = format!(
-                    "{ts} {color}{tag}{reset} [{}] {}\n",
-                    record.target(),
-                    message,
-                );
-                if let Some(ref mut stream) = sink.stream {
-                    if stream.write_all(line.as_bytes()).is_err() {
-                        sink.stream = None;
-                        // Try reconnect if cooldown has passed
-                        try_reconnect_tcp(sink);
-                    }
-                } else {
-                    try_reconnect_tcp(sink);
-                    // Retry write after reconnect
-                    if let Some(ref mut stream) = sink.stream {
-                        let _ = stream.write_all(line.as_bytes());
-                    }
-                }
-            }
-        }
-    }
-
-    fn flush(&self) {
-        let _ = std::io::stderr().flush();
-        if let Ok(mut guard) = TCP_SINK.lock() {
-            if let Some(ref mut sink) = *guard {
-                if let Some(ref mut stream) = sink.stream {
-                    let _ = stream.flush();
-                }
-            }
-        }
-    }
-}
-
-fn try_reconnect_tcp(sink: &mut TcpSinkState) {
-    let now = IosLogger::now_ms();
-    if now.saturating_sub(sink.last_reconnect_attempt_ms) < TCP_RECONNECT_COOLDOWN_MS {
-        return;
-    }
-    sink.last_reconnect_attempt_ms = now;
-
-    let addr = match RELAY_ADDR.lock() {
-        Ok(guard) => match *guard {
-            Some(a) => a,
-            None => return,
-        },
-        Err(_) => return,
-    };
-
-    if let Ok(stream) = TcpStream::connect_timeout(&addr, Duration::from_millis(200)) {
-        let _ = stream.set_nodelay(true);
-        sink.stream = Some(stream);
-    }
-}
-
-fn try_connect_log_relay() {
-    let addr = match option_env!("GPUI_LOG_RELAY") {
-        Some(a) if !a.is_empty() => a,
-        _ => return,
-    };
-
-    let sock_addr = match addr.parse::<SocketAddr>() {
-        Ok(a) => a,
-        Err(_) => return,
-    };
-
-    // Store for reconnection
-    if let Ok(mut guard) = RELAY_ADDR.lock() {
-        *guard = Some(sock_addr);
-    }
-
-    match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(2)) {
-        Ok(stream) => {
-            let _ = stream.set_nodelay(true);
-            *TCP_SINK.lock().unwrap() = Some(TcpSinkState {
-                stream: Some(stream),
-                last_reconnect_attempt_ms: 0,
-            });
-        }
-        Err(_) => {
-            *TCP_SINK.lock().unwrap() = Some(TcpSinkState {
-                stream: None,
-                last_reconnect_attempt_ms: 0,
-            });
-        }
-    }
-}
-
-fn init_logging(subsystem: &str) {
-    try_connect_log_relay();
-    let logger = IosLogger::new(subsystem);
-    log::set_boxed_logger(Box::new(logger)).expect("failed to set logger");
-
-    let level = match option_env!("GPUI_LOG_LEVEL") {
-        Some("trace") | Some("TRACE") => LevelFilter::Trace,
-        Some("debug") | Some("DEBUG") => LevelFilter::Debug,
-        Some("info") | Some("INFO") => LevelFilter::Info,
-        Some("warn") | Some("WARN") => LevelFilter::Warn,
-        Some("error") | Some("ERROR") => LevelFilter::Error,
-        _ => LevelFilter::Debug,
-    };
-    log::set_max_level(level);
+#[derive(Debug)]
+pub struct UnknownIosDemo<'a> {
+    pub name: &'a str,
 }
 
 fn run_ios_app<V: Render + 'static>(
-    subsystem: &str,
+    launch: &AppLauncher,
     build_view: impl FnOnce(&mut Window, &mut Context<V>) -> V + 'static,
 ) {
-    if STARTED.swap(true, Ordering::SeqCst) {
-        return;
-    }
-
-    init_logging(subsystem);
-
-    std::panic::set_hook(Box::new(|info| {
-        log::error!("[GPUI-iOS] PANIC: {}", info);
-        let home = std::env::var("HOME").unwrap_or_default();
-        let path = format!("{}/Documents/gpui_panic.log", home);
-        let _ = std::fs::write(&path, format!("{}", info));
-    }));
-
-    log::info!("[GPUI-iOS] launching app ({subsystem})");
-
-    let app = gpui_platform::application();
-    let keepalive = app.clone();
-    let _ = Box::leak(Box::new(keepalive));
-
-    app.run(move |cx: &mut App| {
+    launch(Box::new(move |cx: &mut App| {
         cx.open_window(WindowOptions::default(), |window, cx| {
             cx.new(|cx| build_view(window, cx))
         })
         .expect("failed to open GPUI iOS window");
         cx.activate(true);
-    });
+    }));
 }
 
 // ---------------------------------------------------------------------------
@@ -307,9 +164,8 @@ impl Render for IosHelloWorld {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_hello_world() {
-    run_ios_app("dev.glasshq.GPUIiOSHello", |_, _| IosHelloWorld);
+pub fn run_hello_world(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosHelloWorld);
 }
 
 // ---------------------------------------------------------------------------
@@ -420,9 +276,8 @@ impl Render for IosTouchDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_touch_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSTouchDemo", |_, _| IosTouchDemo {
+pub fn run_touch_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosTouchDemo {
         tapped_box: None,
         tap_count: 0,
     });
@@ -479,9 +334,8 @@ impl Render for IosTextDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_text_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSTextDemo", |_, _| IosTextDemo);
+pub fn run_text_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosTextDemo);
 }
 
 // ---------------------------------------------------------------------------
@@ -555,11 +409,8 @@ impl Render for IosLifecycleDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_lifecycle_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSLifecycleDemo", |_, _| {
-        IosLifecycleDemo { resize_count: 0 }
-    });
+pub fn run_lifecycle_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosLifecycleDemo { resize_count: 0 });
 }
 
 // ---------------------------------------------------------------------------
@@ -716,9 +567,8 @@ impl Render for IosCombinedDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_combined_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSCombinedDemo", |_, _| IosCombinedDemo {
+pub fn run_combined_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosCombinedDemo {
         tap_count: 0,
         last_tapped: None,
     });
@@ -805,9 +655,8 @@ impl Render for IosScrollDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_scroll_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSScrollDemo", |_, _| IosScrollDemo);
+pub fn run_scroll_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosScrollDemo);
 }
 
 // ---------------------------------------------------------------------------
@@ -885,11 +734,8 @@ impl Render for IosVerticalScrollDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_vertical_scroll_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSVerticalScrollDemo", |_, _| {
-        IosVerticalScrollDemo
-    });
+pub fn run_vertical_scroll_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosVerticalScrollDemo);
 }
 
 // ---------------------------------------------------------------------------
@@ -984,11 +830,8 @@ impl Render for IosHorizontalScrollDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_horizontal_scroll_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSHorizontalScrollDemo", |_, _| {
-        IosHorizontalScrollDemo
-    });
+pub fn run_horizontal_scroll_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosHorizontalScrollDemo);
 }
 
 // ---------------------------------------------------------------------------
@@ -1046,11 +889,8 @@ impl Render for IosPinchDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_pinch_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSPinchDemo", |_, _| IosPinchDemo {
-        scale: 1.0,
-    });
+pub fn run_pinch_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosPinchDemo { scale: 1.0 });
 }
 
 // ---------------------------------------------------------------------------
@@ -1144,11 +984,8 @@ fn previous_utf8_boundary(text: &str, offset: usize) -> usize {
         .unwrap_or(0)
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_rotation_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSRotationDemo", |_, _| IosRotationDemo {
-        angle_rad: 0.0,
-    });
+pub fn run_rotation_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosRotationDemo { angle_rad: 0.0 });
 }
 
 // ---------------------------------------------------------------------------
@@ -1816,21 +1653,18 @@ impl Render for IosControlsDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_controls_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSControlsDemo", |_window, cx| {
-        IosControlsDemo {
-            focus_handle: cx.focus_handle(),
-            button_tap_count: 0,
-            switch_on: false,
-            checkbox_checked: false,
-            slider_value: 0.5,
-            stepper_value: 0,
-            text_field_value: String::new(),
-            text_field_selection: 0..0,
-            text_field_marked_range: None,
-            selected_segment: 0,
-        }
+pub fn run_controls_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_window, cx| IosControlsDemo {
+        focus_handle: cx.focus_handle(),
+        button_tap_count: 0,
+        switch_on: false,
+        checkbox_checked: false,
+        slider_value: 0.5,
+        stepper_value: 0,
+        text_field_value: String::new(),
+        text_field_selection: 0..0,
+        text_field_marked_range: None,
+        selected_segment: 0,
     });
 }
 
@@ -2477,25 +2311,22 @@ impl Render for IosTextInputDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_text_input_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSTextInputDemo", |_window, cx| {
-        IosTextInputDemo {
-            focus_handle: cx.focus_handle(),
-            value: String::new(),
-            selection: 0..0,
-            marked_range: None,
-            submitted: Vec::new(),
-            multiline: false,
-            secure: false,
-            keyboard_mode: DemoKeyboardMode::Default,
-            return_mode: DemoReturnMode::SubmitAndBlur,
-            autocorrect_mode: DemoAutocorrectMode::Default,
-            capitalization_mode: DemoCapitalizationMode::Sentences,
-            spell_check: TextInputSpellChecking::Default,
-            keyboard_appearance: TextInputKeyboardAppearance::Default,
-            soft_keyboard: TextInputSoftKeyboardPolicy::Automatic,
-        }
+pub fn run_text_input_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_window, cx| IosTextInputDemo {
+        focus_handle: cx.focus_handle(),
+        value: String::new(),
+        selection: 0..0,
+        marked_range: None,
+        submitted: Vec::new(),
+        multiline: false,
+        secure: false,
+        keyboard_mode: DemoKeyboardMode::Default,
+        return_mode: DemoReturnMode::SubmitAndBlur,
+        autocorrect_mode: DemoAutocorrectMode::Default,
+        capitalization_mode: DemoCapitalizationMode::Sentences,
+        spell_check: TextInputSpellChecking::Default,
+        keyboard_appearance: TextInputKeyboardAppearance::Default,
+        soft_keyboard: TextInputSoftKeyboardPolicy::Automatic,
     });
 }
 
@@ -2796,19 +2627,16 @@ impl Render for IosNativeControlsDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_native_controls_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSNativeControlsDemo", |_, _| {
-        IosNativeControlsDemo {
-            button_tap_count: 0,
-            switch_on: false,
-            checkbox_checked: false,
-            slider_value: 0.5,
-            stepper_value: 0.0,
-            text_field_value: String::new(),
-            progress_value: 0.5,
-            selected_segment: 0,
-        }
+pub fn run_native_controls_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosNativeControlsDemo {
+        button_tap_count: 0,
+        switch_on: false,
+        checkbox_checked: false,
+        slider_value: 0.5,
+        stepper_value: 0.0,
+        text_field_value: String::new(),
+        progress_value: 0.5,
+        selected_segment: 0,
     });
 }
 
@@ -3010,11 +2838,8 @@ impl Render for IosSafeAreaDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_safe_area_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSSafeAreaDemo", |_, _| IosSafeAreaDemo {
-        show_raw: false,
-    });
+pub fn run_safe_area_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosSafeAreaDemo { show_raw: false });
 }
 
 // ---------------------------------------------------------------------------
@@ -3880,11 +3705,8 @@ impl Render for IosLayoutShowcase {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_layout_showcase() {
-    run_ios_app("dev.glasshq.GPUIiOSLayoutShowcase", |_, _| {
-        IosLayoutShowcase { selected_tab: 0 }
-    });
+pub fn run_layout_showcase(launch: &AppLauncher) {
+    run_ios_app(launch, |_, _| IosLayoutShowcase { selected_tab: 0 });
 }
 
 // ---------------------------------------------------------------------------
@@ -4103,14 +3925,11 @@ impl Render for IosTier1FilePickerDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_file_picker_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSFilePickerValidation", |_window, _cx| {
-        IosTier1FilePickerDemo {
-            status: "Ready".to_string(),
-            picked_paths: Vec::new(),
-            save_path: None,
-        }
+pub fn run_file_picker_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_window, _cx| IosTier1FilePickerDemo {
+        status: "Ready".to_string(),
+        picked_paths: Vec::new(),
+        save_path: None,
     });
 }
 
@@ -4255,15 +4074,12 @@ impl Render for IosTier1ClipboardDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_clipboard_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSClipboardValidation", |_window, _cx| {
-        IosTier1ClipboardDemo {
-            status: "Ready".to_string(),
-            last_text: "<none>".to_string(),
-            last_metadata: "<none>".to_string(),
-            last_image_size: 0,
-        }
+pub fn run_clipboard_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_window, _cx| IosTier1ClipboardDemo {
+        status: "Ready".to_string(),
+        last_text: "<none>".to_string(),
+        last_metadata: "<none>".to_string(),
+        last_image_size: 0,
     });
 }
 
@@ -4378,14 +4194,11 @@ impl Render for IosTier1FileDropDemo {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_run_file_drop_demo() {
-    run_ios_app("dev.glasshq.GPUIiOSFileDropValidation", |_window, _cx| {
-        IosTier1FileDropDemo {
-            status: "Waiting for drag".to_string(),
-            hover_count: 0,
-            dropped_paths: Vec::new(),
-        }
+pub fn run_file_drop_demo(launch: &AppLauncher) {
+    run_ios_app(launch, |_window, _cx| IosTier1FileDropDemo {
+        status: "Waiting for drag".to_string(),
+        hover_count: 0,
+        dropped_paths: Vec::new(),
     });
 }
 
@@ -4393,84 +4206,84 @@ pub extern "C" fn gpui_ios_run_file_drop_demo() {
 // Demo dispatcher — called from ObjC main.m with demo name as C string
 // ---------------------------------------------------------------------------
 
-const AVAILABLE_DEMOS: &[&str] = &[
-    "hello_world",
-    "touch",
-    "text",
-    "lifecycle",
-    "combined",
-    "scroll",
-    "vertical_scroll",
-    "horizontal_scroll",
-    "pinch",
-    "rotation",
-    "text_input",
-    "controls",
-    "native_controls",
-    "safe_area",
-    "layout_showcase",
-    "file_picker",
-    "clipboard",
-    "file_drop",
-];
+pub fn available_demo_names() -> impl Iterator<Item = &'static str> {
+    IOS_DEMOS.iter().map(|demo| demo.name)
+}
 
-#[unsafe(no_mangle)]
-/// Run a named iOS demo entrypoint.
-///
-/// # Safety
-/// `name` must be a valid, non-null, NUL-terminated C string pointer.
-pub unsafe extern "C" fn gpui_ios_run_demo(name: *const std::ffi::c_char) {
-    let name = unsafe { std::ffi::CStr::from_ptr(name) }
-        .to_str()
-        .unwrap_or("hello_world");
+pub fn run_demo_named<'a>(name: &'a str, launch: &AppLauncher) -> Result<(), UnknownIosDemo<'a>> {
     match name {
-        "hello_world" => gpui_ios_run_hello_world(),
-        "touch" => gpui_ios_run_touch_demo(),
-        "text" => gpui_ios_run_text_demo(),
-        "lifecycle" => gpui_ios_run_lifecycle_demo(),
-        "combined" => gpui_ios_run_combined_demo(),
-        "scroll" => gpui_ios_run_scroll_demo(),
-        "vertical_scroll" => gpui_ios_run_vertical_scroll_demo(),
-        "horizontal_scroll" => gpui_ios_run_horizontal_scroll_demo(),
-        "pinch" => gpui_ios_run_pinch_demo(),
-        "rotation" => gpui_ios_run_rotation_demo(),
-        "text_input" => gpui_ios_run_text_input_demo(),
-        "controls" => gpui_ios_run_controls_demo(),
-        "native_controls" => gpui_ios_run_native_controls_demo(),
-        "safe_area" => gpui_ios_run_safe_area_demo(),
-        "layout_showcase" => gpui_ios_run_layout_showcase(),
-        "file_picker" => gpui_ios_run_file_picker_demo(),
-        "clipboard" => gpui_ios_run_clipboard_demo(),
-        "file_drop" => gpui_ios_run_file_drop_demo(),
-        unknown => {
-            // Init logging so the error is visible
-            init_logging("dev.glasshq.GPUIiOS");
-            log::error!(
-                "Unknown demo: '{}'. Available: {}",
-                unknown,
-                AVAILABLE_DEMOS.join(", ")
-            );
-            gpui_ios_run_hello_world();
+        "hello_world" => {
+            run_hello_world(launch);
+            Ok(())
         }
-    }
-}
-
-/// Returns a newline-separated list of available demo names. Caller must free with `gpui_ios_free_string`.
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_ios_list_demos() -> *mut std::ffi::c_char {
-    let list = AVAILABLE_DEMOS.join("\n");
-    std::ffi::CString::new(list)
-        .expect("demo names contain no NUL bytes")
-        .into_raw()
-}
-
-/// Free a string returned by `gpui_ios_list_demos`.
-///
-/// # Safety
-/// `s` must be a pointer returned by `gpui_ios_list_demos` and not already freed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn gpui_ios_free_string(s: *mut std::ffi::c_char) {
-    if !s.is_null() {
-        unsafe { drop(std::ffi::CString::from_raw(s)) };
+        "touch" => {
+            run_touch_demo(launch);
+            Ok(())
+        }
+        "text" => {
+            run_text_demo(launch);
+            Ok(())
+        }
+        "lifecycle" => {
+            run_lifecycle_demo(launch);
+            Ok(())
+        }
+        "combined" => {
+            run_combined_demo(launch);
+            Ok(())
+        }
+        "scroll" => {
+            run_scroll_demo(launch);
+            Ok(())
+        }
+        "vertical_scroll" => {
+            run_vertical_scroll_demo(launch);
+            Ok(())
+        }
+        "horizontal_scroll" => {
+            run_horizontal_scroll_demo(launch);
+            Ok(())
+        }
+        "pinch" => {
+            run_pinch_demo(launch);
+            Ok(())
+        }
+        "rotation" => {
+            run_rotation_demo(launch);
+            Ok(())
+        }
+        "text_input" => {
+            run_text_input_demo(launch);
+            Ok(())
+        }
+        "controls" => {
+            run_controls_demo(launch);
+            Ok(())
+        }
+        "native_controls" => {
+            run_native_controls_demo(launch);
+            Ok(())
+        }
+        "safe_area" => {
+            run_safe_area_demo(launch);
+            Ok(())
+        }
+        "layout_showcase" => {
+            run_layout_showcase(launch);
+            Ok(())
+        }
+        "file_picker" => {
+            run_file_picker_demo(launch);
+            Ok(())
+        }
+        "clipboard" => {
+            run_clipboard_demo(launch);
+            Ok(())
+        }
+        "file_drop" => {
+            run_file_drop_demo(launch);
+            Ok(())
+        }
+        _ => Err(UnknownIosDemo { name }),
     }
 }

@@ -28,7 +28,7 @@ use metal::{
 use objc::{self, msg_send, sel, sel_impl};
 use parking_lot::Mutex;
 
-use std::{cell::Cell, ffi::c_void, mem, ptr, sync::Arc};
+use std::{cell::Cell, ffi::c_void, mem, ptr, rc::Rc, sync::Arc};
 
 // Cross-platform type aliases replacing cocoa-specific imports.
 // `CGSize` has the same layout as `NSSize` — both are `{ width: f64, height: f64 }`.
@@ -146,7 +146,7 @@ pub struct SharedRenderResources {
 }
 
 pub struct MetalRenderer {
-    shared: Arc<SharedRenderResources>,
+    shared: Rc<SharedRenderResources>,
     layer: metal::MetalLayer,
     presents_with_transaction: bool,
     path_intermediate_texture: Option<metal::Texture>,
@@ -155,9 +155,9 @@ pub struct MetalRenderer {
 
 /// A lightweight renderer for secondary GPUI surfaces. Shares GPU resources
 /// (device, pipeline states, atlas, etc.) with the main MetalRenderer via
-/// `Arc<SharedRenderResources>`, but owns its own CAMetalLayer and path textures.
+/// `Rc<SharedRenderResources>`, but owns its own CAMetalLayer and path textures.
 pub struct SurfaceRenderer {
-    shared: Arc<SharedRenderResources>,
+    shared: Rc<SharedRenderResources>,
     layer: metal::MetalLayer,
     path_intermediate_texture: Option<metal::Texture>,
     path_intermediate_msaa_texture: Option<metal::Texture>,
@@ -346,7 +346,7 @@ impl MetalRenderer {
         let core_video_texture_cache =
             CVMetalTextureCache::new(None, device.clone(), None).unwrap();
 
-        let shared = Arc::new(SharedRenderResources {
+        let shared = Rc::new(SharedRenderResources {
             device,
             command_queue,
             paths_rasterization_pipeline_state,
@@ -377,7 +377,7 @@ impl MetalRenderer {
         }
     }
 
-    pub fn shared(&self) -> &Arc<SharedRenderResources> {
+    pub fn shared(&self) -> &Rc<SharedRenderResources> {
         &self.shared
     }
 
@@ -558,7 +558,7 @@ impl MetalRenderer {
 }
 
 impl SurfaceRenderer {
-    pub fn new(shared: Arc<SharedRenderResources>, transparent: bool) -> Self {
+    pub fn new(shared: Rc<SharedRenderResources>, transparent: bool) -> Self {
         let layer = metal::MetalLayer::new();
         layer.set_device(&shared.device);
         layer.set_pixel_format(MTLPixelFormat::BGRA8Unorm);

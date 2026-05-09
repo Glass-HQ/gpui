@@ -29,13 +29,13 @@ use crate::{
     SubscriberSet, Subscription, SystemWindowTab, SystemWindowTabController, TabStopMap,
     TaffyLayoutEngine, Task, TextRenderingMode, TextStyle, TextStyleRefinement, ThermalState,
     TransformationMatrix, Underline, UnderlineStyle, WindowAppearance, WindowBackgroundAppearance,
-    WindowBounds, WindowControls, WindowDecorations, WindowOptions, WindowParams,
-    WindowTextSystem, point, prelude::*, px, rems, size, transparent_black,
+    WindowBounds, WindowControls, WindowDecorations, WindowOptions, WindowParams, WindowTextSystem,
+    point, prelude::*, px, rems, size, transparent_black,
 };
-use anyhow::{Context as _, Result, anyhow};
-use collections::{FxHashMap, FxHashSet};
 #[cfg(target_os = "macos")]
 use crate::{WindowTabbingMode, div};
+use anyhow::{Context as _, Result, anyhow};
+use collections::{FxHashMap, FxHashSet};
 #[cfg(target_os = "macos")]
 use core_video::pixel_buffer::CVPixelBuffer;
 use derive_more::{Deref, DerefMut};
@@ -4351,7 +4351,6 @@ impl Window {
         });
         #[cfg(target_os = "macos")]
         platform_window.on_surface_input({
-            let handle = handle.clone();
             let mut cx = cx.to_async();
             Box::new(move |native_view_ptr, event| {
                 handle
@@ -7816,7 +7815,10 @@ impl Window {
             let cx = self.to_async(cx);
             self.next_frame.focused_input_contexts.insert(
                 focus_handle.id,
-                self.next_frame.dispatch_tree.current_context_stack().to_vec(),
+                self.next_frame
+                    .dispatch_tree
+                    .current_context_stack()
+                    .to_vec(),
             );
             self.next_frame
                 .input_handlers
@@ -8401,11 +8403,13 @@ impl Window {
             .cloned();
 
         let match_result = if let Some(ref context_stack) = focused_input_context {
-            self.rendered_frame.dispatch_tree.dispatch_key_with_context_stack(
-                currently_pending.keystrokes,
-                keystroke,
-                context_stack,
-            )
+            self.rendered_frame
+                .dispatch_tree
+                .dispatch_key_with_context_stack(
+                    currently_pending.keystrokes,
+                    keystroke,
+                    context_stack,
+                )
         } else {
             self.rendered_frame.dispatch_tree.dispatch_key(
                 currently_pending.keystrokes,
@@ -8966,7 +8970,11 @@ impl Window {
         &self,
         focus_handle: &FocusHandle,
     ) -> Option<Vec<KeyContext>> {
-        if let Some(contexts) = self.rendered_frame.focused_input_contexts.get(&focus_handle.id) {
+        if let Some(contexts) = self
+            .rendered_frame
+            .focused_input_contexts
+            .get(&focus_handle.id)
+        {
             return Some(contexts.clone());
         }
 

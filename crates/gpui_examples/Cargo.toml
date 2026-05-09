@@ -1,0 +1,29 @@
+[package]
+name = "gpui_examples"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+log.workspace = true
+web-time.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+env_logger.workspace = true
+futures.workspace = true
+gpui_platform = { workspace = true, features = ["font-kit"] }
+gpui_web.workspace = true
+lyon = { version = "1.0", features = ["extra"] }
+rand.workspace = true
+reqwest_client.workspace = true
+unicode-segmentation.workspace = true
+url.workspace = true
+wasm-bindgen.workspace = true

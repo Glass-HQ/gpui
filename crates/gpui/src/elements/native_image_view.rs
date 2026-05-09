@@ -275,29 +275,37 @@ fn resolve_image_source(
     source: &Option<NativeImageSource>,
     window: &mut Window,
     cx: &mut App,
-) -> (Option<String>, Option<(String, f64, i64)>, Option<Vec<u8>>, bool) {
+) -> (
+    Option<String>,
+    Option<(String, f64, i64)>,
+    Option<Vec<u8>>,
+    bool,
+) {
     let Some(src) = source else {
         return (None, None, None, false);
     };
     match src {
-        NativeImageSource::SfSymbol { name, point_size, weight } => {
+        NativeImageSource::SfSymbol {
+            name,
+            point_size,
+            weight,
+        } => {
             if let Some(pt) = point_size {
-                (None, Some((name.to_string(), *pt, weight.to_raw())), None, false)
+                (
+                    None,
+                    Some((name.to_string(), *pt, weight.to_raw())),
+                    None,
+                    false,
+                )
             } else {
                 (Some(name.to_string()), None, None, false)
             }
         }
-        NativeImageSource::Data(data) => {
-            (None, None, Some(data.clone()), false)
-        }
+        NativeImageSource::Data(data) => (None, None, Some(data.clone()), false),
         NativeImageSource::Resource(resource) => {
             match window.use_asset::<NativeImageResourceLoader>(resource, cx) {
-                Some(Ok(data)) => {
-                    (None, None, Some(data.as_ref().clone()), false)
-                }
-                Some(Err(_)) => {
-                    (None, None, None, false)
-                }
+                Some(Ok(data)) => (None, None, Some(data.as_ref().clone()), false),
+                Some(Err(_)) => (None, None, None, false),
                 None => {
                     // Still loading — signal pending so we don't cache this source
                     (None, None, None, true)

@@ -58,4 +58,3 @@ pub(super) fn schedule_native_focus_callback(
         inv.set_dirty(true);
     })
 }
-

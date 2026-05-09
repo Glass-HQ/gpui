@@ -1,5 +1,6 @@
 #![cfg(target_os = "ios")]
 
+mod app_bridge;
 mod ios_native_controls;
 pub(crate) mod native_controls;
 mod text_input;

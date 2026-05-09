@@ -841,8 +841,7 @@ impl VisualTestContext {
         origin: Point<Pixels>,
         space: impl Into<Size<AvailableSpace>>,
         f: impl FnOnce(&mut Window, &mut App) -> E,
-    )
-    where
+    ) where
         E: Element,
     {
         self.update(|window, cx| {

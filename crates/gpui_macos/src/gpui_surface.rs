@@ -18,7 +18,7 @@ use objc::{
     sel, sel_impl,
 };
 use parking_lot::Mutex;
-use std::{ffi::c_void, mem, ptr, sync::Arc};
+use std::{ffi::c_void, mem, ptr, rc::Rc, sync::Arc};
 
 const WINDOW_STATE_IVAR: &str = "windowStatePtr";
 
@@ -360,7 +360,7 @@ pub(crate) struct GpuiSurface {
 }
 
 impl GpuiSurface {
-    pub fn new(shared: Arc<gpui_metal::SharedRenderResources>, transparent: bool) -> Self {
+    pub fn new(shared: Rc<gpui_metal::SharedRenderResources>, transparent: bool) -> Self {
         let renderer = SurfaceRenderer::new(shared, transparent);
 
         let native_view = unsafe {
@@ -372,10 +372,10 @@ impl GpuiSurface {
 
             // Store the Metal layer pointer so makeBackingLayer returns it
             let layer_ptr = renderer.layer_ptr() as *mut c_void;
-            (*(view as *mut Object)).set_ivar::<*mut c_void>("metalLayerPtr", layer_ptr);
+            (*view).set_ivar::<*mut c_void>("metalLayerPtr", layer_ptr);
 
             // Initialize window state pointer to null
-            (*(view as *mut Object)).set_ivar::<*mut c_void>(WINDOW_STATE_IVAR, ptr::null_mut());
+            (*view).set_ivar::<*mut c_void>(WINDOW_STATE_IVAR, ptr::null_mut());
 
             // Force the view to create its layer now
             let _: () = msg_send![view, setWantsLayer: 1i8];
@@ -468,7 +468,7 @@ impl GpuiSurface {
                     let _drop = Arc::from_raw(prev as *mut Mutex<MacWindowState>);
                 }
             }
-            (*(self.native_view as *mut Object))
+            (*self.native_view)
                 .set_ivar::<*mut c_void>(WINDOW_STATE_IVAR, raw_state_ptr as *mut c_void);
             self.has_window_state = !raw_state_ptr.is_null();
         }

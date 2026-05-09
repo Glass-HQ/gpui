@@ -581,7 +581,7 @@ impl TabBarExample {
         }
 
         // Add tab button
-        let w_add = weak.clone();
+        let w_add = weak;
         tab_items = tab_items.child(
             div()
                 .id("add-tab-btn")
@@ -788,7 +788,7 @@ impl Render for SidebarTabPanel {
         }
 
         // Add tab button at bottom
-        let wm_add = weak_main.clone();
+        let wm_add = weak_main;
         tab_list = tab_list.child(
             div()
                 .id("sb-add-tab-btn")

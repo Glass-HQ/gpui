@@ -127,7 +127,7 @@ pub(crate) unsafe fn create_native_tracking_view() -> id {
         let _: () = msg_send![view, setAutoresizingMask: 0u64];
 
         // Initialize callback pointer to null
-        (*(view as *mut Object)).set_ivar::<*mut c_void>(CALLBACK_IVAR, ptr::null_mut());
+        (*view).set_ivar::<*mut c_void>(CALLBACK_IVAR, ptr::null_mut());
 
         // Set up initial tracking area
         let bounds: NSRect = msg_send![view, bounds];
@@ -148,13 +148,13 @@ pub(crate) unsafe fn set_native_tracking_view_callbacks(
 ) -> *mut c_void {
     unsafe {
         // Free previous callbacks if any
-        let old_ptr: *mut c_void = *(*(view as *mut Object)).get_ivar(CALLBACK_IVAR);
+        let old_ptr: *mut c_void = *(*view).get_ivar(CALLBACK_IVAR);
         if !old_ptr.is_null() {
             let _ = Box::from_raw(old_ptr as *mut TrackingViewCallbacks);
         }
 
         let callbacks_ptr = Box::into_raw(Box::new(callbacks)) as *mut c_void;
-        (*(view as *mut Object)).set_ivar::<*mut c_void>(CALLBACK_IVAR, callbacks_ptr);
+        (*view).set_ivar::<*mut c_void>(CALLBACK_IVAR, callbacks_ptr);
         callbacks_ptr
     }
 }

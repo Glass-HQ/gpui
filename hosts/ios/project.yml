@@ -42,7 +42,7 @@ targets:
           - "$(BUILT_PRODUCTS_DIR)"
         OTHER_LDFLAGS:
           - "$(inherited)"
-          - "-lgpui_ios_app"
+          - "-lgpui_ios"
     preBuildScripts:
       - name: Build Rust
         basedOnDependencyAnalysis: false

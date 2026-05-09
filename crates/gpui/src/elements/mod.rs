@@ -21,9 +21,9 @@ mod native_element_helpers;
 #[allow(missing_docs)]
 mod native_glass_effect_view;
 #[allow(missing_docs)]
-mod native_image_view;
-#[allow(missing_docs)]
 mod native_icon_button;
+#[allow(missing_docs)]
+mod native_image_view;
 #[allow(missing_docs)]
 mod native_menu_button;
 #[allow(missing_docs)]

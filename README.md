@@ -64,7 +64,7 @@ cargo gpui run ios
 cargo gpui run ios hello_world --sim
 ```
 
-The host-shell model is documented in [docs/host-shells.md](docs/host-shells.md).
+The host-shell model is documented in [hosts/README.md](hosts/README.md).
 
 ## Other Resources
 

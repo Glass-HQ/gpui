@@ -4,8 +4,8 @@ members = [
     "tooling/cargo-gpui",
     "crates/collections",
     "crates/gpui",
+    "crates/gpui_examples",
     "crates/gpui_ios",
-    "crates/gpui_ios_app",
     "crates/gpui_linux",
     "crates/gpui_macos",
     "crates/gpui_macros",
@@ -62,6 +62,7 @@ edition = "2024"
 
 collections = { path = "crates/collections", version = "0.1.0" }
 gpui = { path = "crates/gpui", default-features = false }
+gpui_examples = { path = "crates/gpui_examples" }
 gpui_ios = { path = "crates/gpui_ios", default-features = false }
 gpui_linux = { path = "crates/gpui_linux", default-features = false }
 gpui_macos = { path = "crates/gpui_macos", default-features = false }
