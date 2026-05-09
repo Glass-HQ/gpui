@@ -87,6 +87,14 @@ pub struct InstanceBuffer {
     size: usize,
 }
 
+fn upload_buffer_options(unified_memory: bool) -> MTLResourceOptions {
+    if cfg!(target_os = "macos") && !unified_memory {
+        MTLResourceOptions::StorageModeManaged
+    } else {
+        MTLResourceOptions::StorageModeShared | MTLResourceOptions::CPUCacheModeWriteCombined
+    }
+}
+
 impl InstanceBufferPool {
     pub fn reset(&mut self, buffer_size: usize) {
         self.buffer_size = buffer_size;
@@ -95,12 +103,7 @@ impl InstanceBufferPool {
 
     pub fn acquire(&mut self, device: &metal::Device, unified_memory: bool) -> InstanceBuffer {
         let buffer = self.buffers.pop().unwrap_or_else(|| {
-            let options = if unified_memory {
-                MTLResourceOptions::StorageModeShared
-                    | MTLResourceOptions::CPUCacheModeWriteCombined
-            } else {
-                MTLResourceOptions::StorageModeManaged
-            };
+            let options = upload_buffer_options(unified_memory);
             device.new_buffer(self.buffer_size as u64, options)
         });
         InstanceBuffer {
@@ -197,12 +200,6 @@ impl MetalRenderer {
             std::process::exit(1);
         });
 
-        #[cfg(target_os = "ios")]
-        debug_assert!(
-            device.has_unified_memory(),
-            "iOS devices must have unified memory"
-        );
-
         let layer = metal::MetalLayer::new();
         layer.set_device(&device);
         layer.set_pixel_format(MTLPixelFormat::BGRA8Unorm);
@@ -242,6 +239,9 @@ impl MetalRenderer {
         let library = device
             .new_library_with_data(SHADERS_METALLIB)
             .expect("error building metal library");
+        // Memory topology is a device capability, not an OS invariant. iOS
+        // code can also run under the simulator, where Metal may report a
+        // non-unified device.
         let is_unified_memory = device.has_unified_memory();
         let is_apple_gpu = device.supports_family(MTLGPUFamily::Apple1);
 
@@ -263,12 +263,7 @@ impl MetalRenderer {
         let unit_vertices = device.new_buffer_with_data(
             unit_vertices.as_ptr() as *const c_void,
             mem::size_of_val(&unit_vertices) as u64,
-            if is_unified_memory {
-                MTLResourceOptions::StorageModeShared
-                    | MTLResourceOptions::CPUCacheModeWriteCombined
-            } else {
-                MTLResourceOptions::StorageModeManaged
-            },
+            upload_buffer_options(is_unified_memory),
         );
 
         let paths_rasterization_pipeline_state = build_path_rasterization_pipeline_state(

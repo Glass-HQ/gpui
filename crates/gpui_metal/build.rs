@@ -5,6 +5,7 @@ use std::env;
 
 fn main() {
     let target = env::var("CARGO_CFG_TARGET_OS");
+    let target_env = env::var("CARGO_CFG_TARGET_ENV").ok();
 
     match target.as_deref() {
         Ok("macos") => {
@@ -13,7 +14,7 @@ fn main() {
         }
         Ok("ios") => {
             #[cfg(target_os = "macos")]
-            apple::build_ios();
+            apple::build_ios(target_env.as_deref());
         }
         _ => (),
     };
@@ -37,9 +38,14 @@ mod apple {
         compile_metal_shaders(&header_path, "macosx", "-mmacosx-version-min=10.15.7");
     }
 
-    pub(super) fn build_ios() {
+    pub(super) fn build_ios(target_env: Option<&str>) {
         let header_path = generate_shader_bindings();
-        compile_metal_shaders(&header_path, "iphoneos", "-mios-version-min=16.0");
+        let (sdk, version_flag) = if target_env == Some("sim") {
+            ("iphonesimulator", "-mios-simulator-version-min=16.0")
+        } else {
+            ("iphoneos", "-mios-version-min=16.0")
+        };
+        compile_metal_shaders(&header_path, sdk, version_flag);
     }
 
     fn generate_shader_bindings() -> PathBuf {
