@@ -51,6 +51,21 @@ GPUI offers three different [registers](<https://en.wikipedia.org/wiki/Register_
 
 Each of these registers has one or more corresponding contexts that can be accessed from all GPUI services. This context is your main interface to GPUI, and is used extensively throughout the framework.
 
+## Host Tooling
+
+GPUI keeps native app hosts separate from the Rust platform crates. The current
+iOS host shell lives in `hosts/ios`, and `cargo gpui` is the canonical
+interface for syncing and running it.
+
+```sh
+cargo gpui host sync ios
+cargo gpui devices ios
+cargo gpui run ios
+cargo gpui run ios hello_world --sim
+```
+
+The host-shell model is documented in [docs/host-shells.md](docs/host-shells.md).
+
 ## Other Resources
 
 In addition to the systems above, GPUI provides a range of smaller services that are useful for building complex applications:

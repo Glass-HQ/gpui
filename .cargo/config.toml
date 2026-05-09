@@ -1,0 +1,2 @@
+[alias]
+gpui = "run --quiet --package cargo-gpui --"

@@ -48,4 +48,6 @@ targets:
         basedOnDependencyAnalysis: false
         script: |
           set -eu
-          "$SRCROOT/build-rust.sh"
+          export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+          cd "$SRCROOT/../.."
+          cargo gpui host build-rust ios

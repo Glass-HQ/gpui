@@ -1,0 +1,17 @@
+[package]
+name = "cargo-gpui"
+version = "0.1.0"
+publish = false
+edition.workspace = true
+license = "Apache-2.0"
+description = "Workspace host orchestration and developer tooling for GPUI"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+which.workspace = true
+clap = { version = "4.5.38", features = ["derive"] }
