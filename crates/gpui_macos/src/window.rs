@@ -1,8 +1,8 @@
 use crate::{
-    BoolExt, DisplayLink, MacDisplay, NSRange, NSStringExt, TISCopyCurrentKeyboardInputSource,
-    TISGetInputSourceProperty, events::platform_input_from_native,
-    kTISPropertyInputSourceIsASCIICapable, kTISPropertyInputSourceType, kTISTypeKeyboardInputMode,
-    mac_native_controls::MacNativeControls, ns_string, renderer,
+    BoolExt, DisplayLink, MacDisplay, MacNativeControls, NSRange, NSStringExt,
+    TISCopyCurrentKeyboardInputSource, TISGetInputSourceProperty,
+    events::platform_input_from_native, kTISPropertyInputSourceIsASCIICapable,
+    kTISPropertyInputSourceType, kTISTypeKeyboardInputMode, ns_string, renderer,
 };
 use anyhow::Result;
 use block::ConcreteBlock;

@@ -9,7 +9,7 @@ license = "Apache-2.0"
 workspace = true
 
 [lib]
-path = "src/gpui_macos.rs"
+path = "src/lib.rs"
 
 [features]
 default = ["gpui/default"]
@@ -20,6 +20,7 @@ screen-capture = ["gpui/screen-capture"]
 
 [dependencies]
 gpui.workspace = true
+gpui_apple.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 gpui_metal.workspace = true
@@ -56,4 +57,3 @@ smallvec.workspace = true
 strum.workspace = true
 util.workspace = true
 uuid.workspace = true
-

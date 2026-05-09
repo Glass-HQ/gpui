@@ -9,7 +9,7 @@ license = "Apache-2.0"
 workspace = true
 
 [lib]
-path = "src/gpui_ios.rs"
+path = "src/lib.rs"
 crate-type = ["rlib", "staticlib"]
 
 [features]
@@ -18,6 +18,7 @@ font-kit = ["gpui/font-kit", "dep:font-kit", "dep:smallvec"]
 
 [dependencies]
 gpui.workspace = true
+gpui_apple.workspace = true
 
 [target.'cfg(target_os = "ios")'.dependencies]
 gpui_examples.workspace = true
