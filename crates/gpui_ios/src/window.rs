@@ -751,35 +751,4 @@ impl PlatformWindow for IosWindow {
         self.0.lock().ui_view.cast::<c_void>()
     }
 
-    fn native_controls(&self) -> Option<&dyn gpui::native_controls::PlatformNativeControls> {
-        Some(&IOS_NATIVE_CONTROLS)
-    }
-
-    fn configure_hosted_content(
-        &self,
-        host_view: *mut c_void,
-        parent_view: *mut c_void,
-        _config: HostedContentConfig,
-    ) {
-        unsafe {
-            crate::native_controls::configure_native_sidebar_window(
-                host_view as crate::native_controls::id,
-                parent_view,
-            );
-        }
-    }
-
-    fn attach_hosted_surface(
-        &self,
-        host_view: *mut c_void,
-        surface_view: *mut c_void,
-        _target: HostedSurfaceTarget,
-    ) {
-        unsafe {
-            crate::native_controls::embed_surface_view_in_sidebar(
-                host_view as crate::native_controls::id,
-                surface_view as crate::native_controls::id,
-            );
-        }
-    }
 }

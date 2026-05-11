@@ -17,6 +17,7 @@ mod asset_cache;
 mod assets;
 mod bounds_tree;
 mod color;
+pub mod composite_hosts;
 /// The default colors used by GPUI.
 pub mod colors;
 mod element;
@@ -31,11 +32,13 @@ mod inspector;
 mod interactive;
 mod key_dispatch;
 mod keymap;
+pub mod hosted_views;
 mod path_builder;
 mod platform;
 pub mod prelude;
 /// Profiling utilities for task timing and thread performance tracking.
 pub mod profiler;
+pub mod presentations;
 #[cfg(any(target_os = "windows", target_os = "linux", target_family = "wasm"))]
 #[expect(missing_docs)]
 pub mod queue;
@@ -54,8 +57,6 @@ mod text_system;
 mod util;
 mod view;
 mod window;
-/// Window chrome APIs for native toolbars and macOS tabbing.
-pub mod window_chrome;
 
 #[cfg(any(test, feature = "test-support"))]
 pub use proptest;

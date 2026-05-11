@@ -5,6 +5,8 @@ mod dispatcher;
 mod display;
 mod display_link;
 mod drag_drop;
+mod events;
+mod gestures;
 mod keyboard;
 mod lifecycle;
 mod platform;
@@ -16,6 +18,8 @@ pub(crate) use dispatcher::*;
 pub(crate) use display::*;
 pub(crate) use display_link::*;
 pub(crate) use drag_drop::*;
+pub(crate) use events::*;
+pub(crate) use gestures::*;
 pub(crate) use keyboard::*;
 pub(crate) use lifecycle::*;
 pub(crate) use platform::*;
@@ -46,18 +50,17 @@ use gpui::hash;
 use gpui::{
     Action, AnyWindowHandle, BackgroundExecutor, Bounds, Capslock, ClipboardEntry, ClipboardItem,
     CursorStyle, DevicePixels, DispatchEventResult, DisplayId, Edges, ExternalPaths, FileDropEvent,
-    ForegroundExecutor, GLOBAL_THREAD_TIMINGS, GpuSpecs, HostedContentConfig, HostedSurfaceTarget,
-    Image, ImageFormat, KeyDownEvent, KeyUpEvent, KeybindingKeystroke, Keymap, Keystroke, Menu,
-    MenuItem, Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, OwnedMenu, PathPromptOptions, PinchEvent, Pixels, Platform, PlatformAtlas,
-    PlatformDispatcher, PlatformDisplay, PlatformInput, PlatformInputHandler,
+    ForegroundExecutor, GLOBAL_THREAD_TIMINGS, GpuSpecs, Image, ImageFormat, KeyDownEvent,
+    KeyUpEvent, KeybindingKeystroke, Keymap, Keystroke, Menu, MenuItem, Modifiers,
+    ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    OwnedMenu, PathPromptOptions, PinchEvent, Pixels, Platform, PlatformAtlas, PlatformDispatcher,
+    PlatformDisplay, PlatformInput, PlatformInputHandler,
     PlatformKeyboardLayout, PlatformKeyboardMapper, PlatformTextSystem, PlatformWindow, Point,
     Priority, PromptButton, PromptLevel, RequestFrameOptions, RotationEvent, RunnableVariant,
     Scene, ScrollDelta, ScrollWheelEvent, Size, THREAD_TIMINGS, Task, TaskTiming, ThermalState,
     ThreadTaskTimings, TouchPhase, WindowAppearance, WindowBackgroundAppearance, WindowBounds,
     WindowControlArea, WindowParams, point, px, size,
 };
-use gpui_apple::uikit::{IOS_NATIVE_CONTROLS, native_controls};
 use gpui_metal::{InstanceBufferPool, MetalRenderer};
 use metal::{CAMetalLayer, MetalLayer};
 use objc::{

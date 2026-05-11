@@ -14,7 +14,6 @@ mod pasteboard;
 #[cfg(feature = "screen-capture")]
 mod screen_capture;
 
-use gpui_apple::appkit;
 use gpui_metal as renderer;
 
 pub mod gpui_surface;
@@ -40,8 +39,6 @@ use std::{
     ops::Range,
 };
 
-pub(crate) use appkit::MacNativeControls;
-pub(crate) use appkit::native_controls;
 pub(crate) use dispatcher::*;
 pub(crate) use display::*;
 pub(crate) use display_link::*;

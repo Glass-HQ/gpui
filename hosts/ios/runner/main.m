@@ -33,7 +33,6 @@ extern void gpui_ios_run_demo(const char *name);
             @"pinch",
             @"rotation",
             @"controls",
-            @"native_controls",
             @"safe_area",
             @"layout_showcase",
             @"file_picker",
