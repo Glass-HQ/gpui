@@ -62,3 +62,9 @@ pub struct LayerShellOptions {
     /// How keyboard focus should be handled.
     pub keyboard_interactivity: KeyboardInteractivity,
 }
+
+/// An error indicating that an action failed because the compositor doesn't
+/// support the required `zwlr_layer_shell_v1` protocol.
+#[derive(Debug, thiserror::Error)]
+#[error("Compositor doesn't support zwlr_layer_shell_v1")]
+pub struct LayerShellNotSupportedError;
